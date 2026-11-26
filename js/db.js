@@ -14,6 +14,13 @@ const DB = (() => {
   const todayStr = (d = new Date()) => { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
   const fmtMoney = (n) => (Number(n) || 0).toLocaleString("vi-VN");
   const parseNum = (v) => { const n = parseFloat(String(v).replace(/[^\d.,-]/g, "").replace(",", ".")); return isNaN(n) ? 0 : n; };
+  // Giới hạn thời gian chờ một tác vụ mạng: quá hạn thì báo lỗi rõ ràng thay vì
+  // treo mãi (đăng nhập từng bị kẹt ở "Đang đăng nhập..." khi mạng chập chờn).
+  function withTimeout(promise, ms, message) {
+    let t;
+    const timeout = new Promise((_, reject) => { t = setTimeout(() => reject(new Error(message || ("Hết thời gian chờ sau " + ms / 1000 + " giây."))), ms); });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+  }
 
   function seed() {
     const t = todayStr();
@@ -124,11 +131,11 @@ const DB = (() => {
     const data = { meta: { version: 1 } };
     // Đọc song song cho nhanh (trước đây đọc tuần tự từng collection nên
     // lần đăng nhập đầu mất hàng chục giây).
-    const [settingsDoc, seedMarker, ...snaps] = await Promise.all([
+    const [settingsDoc, seedMarker, ...snaps] = await withTimeout(Promise.all([
       fs.collection("settings").doc("store").get(),
       fs.collection("settings").doc("seed").get(),
       ...COLS.filter((c) => c !== "settings").map((c) => fs.collection(c).get()),
-    ]);
+    ]), 15000, "Tải dữ liệu cửa hàng quá lâu. Kiểm tra mạng rồi thử lại.");
     COLS.filter((c) => c !== "settings").forEach((c, i) => {
       data[c] = snaps[i].docs.map((d) => ({ id: d.id, ...d.data() }));
     });
@@ -230,5 +237,5 @@ const DB = (() => {
     if (!fs) saveDemo();
   }
 
-  return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs, loadAfterLogin, ensureLots, recalcStock, deductFromLots };
+  return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs, loadAfterLogin, ensureLots, recalcStock, deductFromLots, withTimeout };
 })();

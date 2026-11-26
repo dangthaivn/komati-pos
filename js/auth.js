@@ -67,14 +67,21 @@ const Auth = (() => {
     // Firebase Auth cần email. Sếp có thể gõ "admin" hoặc cả email "admin@komati.local":
     // nếu đã có @ thì dùng nguyên, chưa có thì tự thêm @komati.local.
     const email = username.includes("@") ? username.toLowerCase() : username.toLowerCase() + "@komati.local";
-    const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+    // Đăng nhập và tải dữ liệu đều có giới hạn 20 giây: mạng chập chờn làm
+    // yêu cầu treo mãi thì app báo rõ để thử lại, thay vì kẹt ở "Đang đăng nhập...".
+    let cred;
+    try {
+      cred = await DB.withTimeout(firebase.auth().signInWithEmailAndPassword(email, password), 20000);
+    } catch (e) {
+      return { ok: false, error: "Đăng nhập quá lâu (mạng chậm hoặc mất kết nối). Kiểm tra mạng rồi thử lại." };
+    }
     // Đăng nhập xong mới được đọc Firestore: tải dữ liệu thật về trước khi
     // tìm hồ sơ nhân viên (trước đây app đọc Firestore ngay lúc khởi động,
     // khi chưa đăng nhập nên bị luật cấm và dữ liệu trống, gây lỗi đăng nhập).
     try {
-      await DB.loadAfterLogin();
+      await DB.withTimeout(DB.loadAfterLogin(), 20000);
     } catch (e) {
-      return { ok: false, error: "Đã đăng nhập nhưng không tải được dữ liệu cửa hàng. Kiểm tra mạng rồi thử lại." };
+      return { ok: false, error: "Đã đăng nhập nhưng tải dữ liệu quá lâu. Kiểm tra mạng rồi thử lại." };
     }
     const db = DB.get();
     const base = username.split("@")[0];
