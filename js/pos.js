@@ -3,6 +3,10 @@ let posCart = []; // {productId, name, unit, qty, price, costPrice, discount, un
 let posCustomer = null;
 let posPayment = "cash"; // cash | transfer | debt
 let posDiscountType = "amount"; // amount (VNĐ) | percent (%)
+// Khách đưa có đang do nhân viên tự nhập số khác với Tổng tiền không.
+let posPaidManual = false;
+// Số lượng hiển thị tối đa 3 số lẻ (VD 2.366 Kg), bỏ số 0 thừa.
+const fmtQty = (q) => { const n = parseFloat((+q || 0).toFixed(3)); return isNaN(n) ? 0 : n; };
 
 function renderPosCustomer() {
   const picked = $("#posCustPicked"), input = $("#posCustSearch");
@@ -22,8 +26,15 @@ function setPosPayment(p) {
   posPayment = p;
   $$("#posPayBoxes .pay-box").forEach((b) => b.classList.toggle("selected", b.dataset.pay === p));
   const t = posTotals();
+  // Tiền mặt: Khách đưa mặc định bằng Tổng tiền. Chuyển khoản: đủ tiền.
+  // Ghi nợ: khách chưa đưa tiền. Chuyển khoản / Ghi nợ thì ẩn dòng Khách đưa.
+  if (p === "cash") { posPaidManual = false; $("#posPaid").value = t.total; }
   if (p === "transfer") $("#posPaid").value = t.total;
   if (p === "debt") $("#posPaid").value = 0;
+  const isCash = p === "cash";
+  $("#posPaidRow").hidden = !isCash;
+  $("#posChangeRow").hidden = !isCash;
+  $("#posPaidSuggest").hidden = !isCash;
   updatePosTotals();
 }
 
@@ -61,7 +72,8 @@ function renderPosCart() {
     <div class="ln-top"><span><b>${esc(it.name)}</b><br><span class="muted">${fmt(it.price)}đ / ${esc(it.unit)}</span></span>
     <b>${fmt(Math.max(0, it.price * it.qty - (it.discount || 0)))}đ</b></div>
     <div class="ln-ctl">
-      <button class="qty-btn" data-i="${i}" data-d="-1" type="button">−</button><span>${it.qty}</span>
+      <button class="qty-btn" data-i="${i}" data-d="-1" type="button">−</button>
+      <input class="qty-input" data-qty="${i}" type="number" min="0" step="0.001" value="${fmtQty(it.qty)}">
       <button class="qty-btn" data-i="${i}" data-d="1" type="button">+</button>
       <button class="btn btn-outline btn-sm" data-disc="${i}" type="button">Giảm giá${it.discount ? `: −${fmt(it.discount)}đ` : ""}</button>
       <button class="btn btn-ghost btn-sm" data-rm="${i}" type="button" style="color:var(--red)">✕</button>
@@ -78,15 +90,43 @@ function posTotals() {
 }
 function updatePosTotals() {
   const t = posTotals();
+  // Khách đưa tự theo Tổng tiền khi đang ở Tiền mặt và nhân viên chưa tự
+  // nhập số khác; Chuyển khoản luôn đủ tiền.
+  if (posPayment === "cash" && !posPaidManual) $("#posPaid").value = t.total;
+  if (posPayment === "transfer") $("#posPaid").value = t.total;
   $("#posSubtotal").textContent = fmt(t.sub) + "đ";
   $("#posTotal").textContent = fmt(t.total) + "đ";
   const paid = moneyInput($("#posPaid").value);
   $("#posChange").textContent = fmt(Math.max(0, paid - t.total)) + "đ";
+  renderPaidSuggest(t.total);
 }
+// Gợi ý số tiền chẵn lớn hơn Tổng tiền một chút để nhân viên chọn nhanh.
+function renderPaidSuggest(total) {
+  const box = $("#posPaidSuggest");
+  if (posPayment !== "cash" || total <= 0) { box.hidden = true; box.innerHTML = ""; return; }
+  const dens = [10000, 50000, 100000, 200000, 500000, 1000000, 5000000];
+  const vals = [];
+  for (const d of dens) {
+    const v = Math.ceil(total / d) * d;
+    if (v > total && !vals.includes(v)) vals.push(v);
+    if (vals.length >= 4) break;
+  }
+  if (!vals.length) vals.push(Math.ceil((total + 100000) / 10000) * 10000);
+  box.hidden = false;
+  box.innerHTML = `<span class="muted">Khách đưa:</span>` + vals.map((v) => `<button type="button" class="suggest-chip" data-amt="${v}">${fmt(v)}</button>`).join("");
+}
+$("#posPaidSuggest").addEventListener("click", (e) => {
+  const b = e.target.closest(".suggest-chip");
+  if (!b) return;
+  $("#posPaid").value = +b.dataset.amt;
+  posPaidManual = true;
+  updatePosTotals();
+});
 $("#posSearch").addEventListener("input", () => renderPOS());
 $("#posCategoryFilter").addEventListener("change", () => renderPOS());
-["posDiscountValue", "posShipping", "posPaid"].forEach((id) =>
+["posDiscountValue", "posShipping"].forEach((id) =>
   $("#" + id).addEventListener("input", updatePosTotals));
+$("#posPaid").addEventListener("input", () => { posPaidManual = true; updatePosTotals(); });
 $("#posDiscountTypeSeg").addEventListener("click", (e) => {
   const b = e.target.closest(".seg-btn");
   if (!b) return;
@@ -107,7 +147,7 @@ $("#posGrid").addEventListener("click", (e) => {
   const ex = posCart.find((it) => it.productId === p.id && it.unit === p.unit);
   if (ex) {
     if (ex.qty + 1 > p.stock) { alert(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); return; }
-    ex.qty += 1;
+    ex.qty = fmtQty(ex.qty + 1);
   } else {
     posCart.push({ productId: p.id, name: p.name, unit: p.unit, qty: 1, price: p.price, costPrice: p.costPrice, discount: 0 });
   }
@@ -118,7 +158,7 @@ $("#posLines").addEventListener("click", (e) => {
   if (q) {
     const it = posCart[+q.dataset.i];
     const p = DB.get().products.find((x) => x.id === it.productId);
-    it.qty += +q.dataset.d;
+    it.qty = fmtQty(it.qty + +q.dataset.d);
     if (it.qty > (p ? p.stock : 99)) { alert(`Chỉ còn ${p ? p.stock : 99} ${p ? p.unit : ""} trong kho.`); it.qty = p ? p.stock : 99; }
     // Số lượng nhỏ nhất là 0: bấm − ở 1 thì về 0 và giữ dòng hàng lại,
     // bấm − tiếp vẫn là 0, không xóa hàng khỏi hóa đơn.
@@ -129,16 +169,59 @@ $("#posLines").addEventListener("click", (e) => {
   const rm = e.target.closest("[data-rm]");
   if (rm) { posCart.splice(+rm.dataset.rm, 1); renderPosCart(); return; }
   const dc = e.target.closest("[data-disc]");
-  if (dc) {
-    const it = posCart[+dc.dataset.disc];
-    const v = prompt(`Giảm giá cho "${it.name}" (nhập số tiền, tối đa ${fmt(it.price * it.qty)}đ):`, it.discount || "");
-    if (v === null) return;
-    const n = moneyInput(v);
-    if (n < 0 || n > it.price * it.qty) { alert("Số tiền giảm chưa hợp lệ."); return; }
-    it.discount = n;
-    renderPosCart();
-  }
+  if (dc) { openItemDiscountModal(+dc.dataset.disc); return; }
 });
+// Nhập trực tiếp số lượng (kể cả số lẻ từng gam, VD 2.366 Kg).
+$("#posLines").addEventListener("change", (e) => {
+  const inp = e.target.closest("[data-qty]");
+  if (!inp) return;
+  const it = posCart[+inp.dataset.qty];
+  const p = DB.get().products.find((x) => x.id === it.productId);
+  let v = parseFloat(inp.value);
+  if (isNaN(v) || v < 0) v = 0;
+  if (p && v > p.stock) { alert(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); v = p.stock; }
+  it.qty = fmtQty(v);
+  if (it.qty === 0) it.discount = 0;
+  renderPosCart();
+});
+// Cửa sổ giảm giá từng món: nút VNĐ / % như dòng Giảm giá hóa đơn.
+let itemDiscType = "amount";
+function openItemDiscountModal(idx) {
+  const it = posCart[idx];
+  if (!it) return;
+  const lineTotal = it.price * it.qty;
+  itemDiscType = "amount";
+  const card = openModal(`<h3>Giảm giá — ${esc(it.name)}</h3>
+    <p class="muted">Đơn giá ${fmt(it.price)}đ × ${fmtQty(it.qty)} ${esc(it.unit)} = <b>${fmt(lineTotal)}đ</b>. Giảm tối đa ${fmt(lineTotal)}đ.</p>
+    <div class="form-row" style="align-items:flex-end">
+      <label style="flex:1">Số tiền giảm / % giảm<input id="itemDiscValue" type="number" min="0" value="${it.discount || 0}"></label>
+      <span class="seg-toggle" id="itemDiscTypeSeg"><button type="button" class="seg-btn selected" data-t="amount">VNĐ</button><button type="button" class="seg-btn" data-t="percent">%</button></span>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" id="itemDiscCancel">Hủy</button>
+      <button type="button" class="btn btn-primary" id="itemDiscSave">Áp dụng</button>
+    </div>`);
+  $("#itemDiscTypeSeg", card).addEventListener("click", (e) => {
+    const b = e.target.closest(".seg-btn");
+    if (!b) return;
+    itemDiscType = b.dataset.t;
+    $$("#itemDiscTypeSeg .seg-btn", card).forEach((x) => x.classList.toggle("selected", x === b));
+  });
+  $("#itemDiscCancel", card).onclick = () => closeModal();
+  $("#itemDiscSave", card).onclick = () => {
+    const v = moneyInput($("#itemDiscValue", card).value);
+    let disc = 0;
+    if (itemDiscType === "percent") {
+      if (v < 0 || v > 100) { alert("Phần trăm giảm phải từ 0 đến 100."); return; }
+      disc = Math.round(lineTotal * v / 100);
+    } else {
+      if (v < 0 || v > lineTotal) { alert("Số tiền giảm chưa hợp lệ."); return; }
+      disc = v;
+    }
+    it.discount = disc;
+    closeModal(); renderPosCart();
+  };
+}
 /* ---------- Tìm khách hàng ở đầu hóa đơn + thêm khách mới ---------- */
 $("#posCustSearch").addEventListener("input", (e) => {
   const q = e.target.value.trim().toLowerCase();
@@ -195,7 +278,7 @@ function openPosQuickAddCustomer(prefill) {
 }
 $("#posClear").addEventListener("click", () => {
   if (!posCart.length) return;
-  if (confirm("Xóa toàn bộ hóa đơn đang tính?")) { posCart = []; posCustomer = null; renderPOS(); }
+  if (confirm("Xóa toàn bộ hóa đơn đang tính?")) { posCart = []; posCustomer = null; posPaidManual = false; renderPOS(); }
 });
 
 async function saveOrder(printAfter) {
@@ -238,11 +321,22 @@ async function saveOrder(printAfter) {
     await DB.put("customers", posCustomer);
   }
   await DB.put("orders", order);
+  // Tiền mặt / Chuyển khoản / Ghi nợ đều ghi 1 dòng vào Sổ quỹ để Sổ quỹ
+  // tự nhận số liệu (tổng thu đã tính cả đơn chuyển khoản và ghi nợ, phiếu
+  // "Bán hàng" / "Bán hàng ghi nợ" được loại khỏi tổng phiếu thu để khỏi
+  // tính 2 lần — xem renderCashbook).
+  const cashCode = "PT" + Date.now().toString().slice(-6);
   if (payment === "cash") {
-    await DB.put("cashEntries", { id: DB.uid("pt"), code: "PT" + Date.now().toString().slice(-6), date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code}`, orderId: order.id });
+    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code}`, orderId: order.id });
+  }
+  if (payment === "transfer") {
+    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code} (Chuyển khoản)`, orderId: order.id });
+  }
+  if (payment === "debt") {
+    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng ghi nợ", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code} (Ghi nợ)`, orderId: order.id });
   }
   DB.logActivity(`Bán đơn hàng ${order.code} cho ${order.customerName}`, t.total, "🛒");
-  posCart = []; posCustomer = null;
+  posCart = []; posCustomer = null; posPaidManual = false;
   $("#posDiscountValue").value = 0; $("#posShipping").value = 0; $("#posPaid").value = 0;
   setPosPayment("cash");
   if (printAfter) printOrder(order);

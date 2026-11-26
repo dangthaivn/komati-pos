@@ -41,7 +41,7 @@ h3 { font-size: 16px; margin: 0; }
 /* Nút Bán hàng nổi bật: khung vuông bo tròn, màu cam. */
 #posBtn { background: linear-gradient(135deg, #ff8a00, #f97316); border-radius: 12px; padding: 10px 18px; font-size: 15px; box-shadow: 0 2px 8px rgba(249, 115, 22, .45); }
 #posBtn:hover { background: linear-gradient(135deg, #f97316, #ea580c); }
-.logout-icon { width: 22px; height: 22px; vertical-align: middle; }
+.logout-icon { width: 28px; height: 28px; vertical-align: middle; }
 .logout-icon-dark { filter: invert(1); }
 .topbar #logoutBtn { display: inline-flex; align-items: center; justify-content: center; }
 .btn-ghost { background: transparent; color: var(--muted); }
@@ -187,12 +187,20 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .pay-box.selected { border-color: var(--blue); background: #eff6ff; color: var(--blue); }
 .pos-summary .mini-input { width: 140px; text-align: right; }
 .pos-summary .inline-ctl { display: inline-flex; gap: 6px; align-items: center; }
-.pos-summary .inline-ctl .mini-input { width: 110px; }
-.seg-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
-.seg-btn { border: none; background: #f1f5f9; padding: 8px 12px; font-size: 13.5px; font-weight: 700; color: #64748b; cursor: pointer; }
-.seg-btn.selected { background: #fff; color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+.pos-summary .inline-ctl .mini-input { width: 140px; }
+.seg-toggle { display: inline-flex; background: #eef2f7; border: 1px solid var(--line); border-radius: 999px; padding: 2px; overflow: hidden; flex-shrink: 0; }
+.seg-btn { border: none; background: transparent; padding: 7px 12px; font-size: 13.5px; font-weight: 700; color: #64748b; cursor: pointer; border-radius: 999px; }
+.seg-btn.selected { background: var(--blue); color: #fff; box-shadow: 0 1px 4px rgba(11, 94, 215, .35); }
 .lots-box { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 10px; }
 .lots-box .tbl td, .lots-box .tbl th { padding: 6px 8px; }
+.units-box { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 10px; }
+.unit-row { display: grid; grid-template-columns: 1fr 120px 130px 32px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.unit-row input { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+.unit-row .pu-price { background: #f8fafc; font-weight: 700; text-align: right; color: var(--ink); }
+.unit-row .unit-label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.unit-qty-wrap { display: flex; gap: 4px; align-items: center; }
+.unit-head { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+.unit-head span { padding: 0 2px; }
 .sc-lot td { background: #f8fafc; font-size: 13px; }
 .sc-prod td { font-weight: 600; background: #fff; }
 .pos-lines { max-height: 52vh; overflow-y: auto; display: grid; gap: 8px; margin: 10px 0; }
@@ -200,6 +208,12 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .pos-line .ln-top { display: flex; justify-content: space-between; gap: 8px; }
 .pos-line .ln-ctl { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
 .qty-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--line); background: #fff; font-size: 16px; cursor: pointer; }
+.qty-input { width: 78px; text-align: center; font-size: 16px; font-weight: 800; padding: 4px 2px; border: 1px solid var(--line); border-radius: 6px; }
+.qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.qty-input { -moz-appearance: textfield; appearance: textfield; }
+.paid-suggest { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 2px 0 6px; }
+.suggest-chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 10px; font-size: 13px; font-weight: 700; color: var(--blue); cursor: pointer; }
+.suggest-chip:hover { background: #e8f0fe; }
 .mini-input { width: 90px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; }
 select.mini-input { width: auto; }
 .pos-summary .row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }

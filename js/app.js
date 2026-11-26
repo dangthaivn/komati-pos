@@ -93,7 +93,7 @@ $("#togglePass").addEventListener("click", () => {
 function enterApp() {
   $("#loginScreen").hidden = true;
   $("#app").hidden = false;
-  $("#currentUserLabel").textContent = Auth.me().name + " (" + Auth.me().role + ")";
+  $("#currentUserLabel").textContent = Auth.me().name;
   applyPermissions();
   showView("dashboard");
   checkExpiry();
@@ -356,7 +356,13 @@ function productFormHTML(p) {
       <label>Đơn vị tính cơ bản<input name="unit" type="text" required value="${esc(p?.unit || "Cái")}"></label>
       <label>Tồn kho hiện tại<input name="stock" type="number" min="0" step="0.01" value="${p?.stock ?? 0}"></label>
     </div>
-    <label>Đơn vị tính phụ (VD: Thùng = 5 Kg, giá riêng)<textarea name="units" rows="2" placeholder="Mỗi dòng: Tên | hệ số quy đổi | giá bán. VD: Thùng | 5 | 3875000">${esc((p?.units || []).map((u) => `${u.name} | ${u.factor} | ${u.price}`).join("\n"))}</textarea></label>
+    <div class="units-box">
+      <label style="font-weight:700">Đơn vị tính phụ</label>
+      <p class="muted" style="margin:2px 0 8px">VD: Thùng = 20 Kg, giá tự nhân theo giá bán (30.000đ × 20 = 600.000đ). Đơn vị sau số lượng tự lấy theo Đơn vị tính cơ bản.</p>
+      <div class="unit-row unit-head"><span>Tên gọi</span><span>Số lượng</span><span>Số tiền</span><span></span></div>
+      <div id="pfUnits"></div>
+      <button type="button" class="btn btn-outline btn-sm" id="pfAddUnit">＋ Thêm đơn vị phụ</button>
+    </div>
     <div class="lots-box">
       <label style="font-weight:700">Lô hàng &amp; hạn sử dụng</label>
       <p class="muted" style="margin:2px 0 8px">Mỗi lần nhập hàng thêm 1 lô (mã lô, hạn sử dụng, số lượng). Tồn kho = tổng số lượng các lô. Khi bán, app trừ lô sắp hết hạn trước.</p>
@@ -390,6 +396,49 @@ function openProductForm(p) {
     if (formLots.length) stockInput.value = total;
   }
   drawLots();
+  // --- Đơn vị tính phụ: 3 ô Tên gọi / Số lượng / Số tiền (tiền tự nhân) ---
+  let formUnits = (p?.units || []).map((u) => ({ ...u }));
+  const basePrice = () => moneyInput(card.querySelector('[name="price"]')?.value);
+  function drawUnits() {
+    const baseUnit = unitVal();
+    $("#pfUnits", card).innerHTML = formUnits.map((u, i) => `<div class="unit-row">
+      <input type="text" class="pu-name" data-i="${i}" placeholder="Tên gọi (VD: Thùng)" value="${esc(u.name)}">
+      <span class="unit-qty-wrap"><input type="number" class="pu-factor" data-i="${i}" min="0" step="0.01" placeholder="Số lượng" value="${u.factor ?? ""}"><span class="unit-label">${esc(baseUnit)}</span></span>
+      <input type="text" class="pu-price" data-i="${i}" readonly value="${fmt(Math.round((basePrice() || 0) * (parseFloat(u.factor) || 0)))}">
+      <button type="button" class="btn btn-ghost btn-sm" data-unitrm="${i}" style="color:var(--red)">✕</button>
+    </div>`).join("") || `<p class="muted">Chưa có đơn vị phụ.</p>`;
+  }
+  function syncUnitPrices() {
+    // Giá đơn vị phụ = giá bán × số lượng (tự nhân).
+    formUnits.forEach((u, i) => {
+      const price = Math.round((basePrice() || 0) * (parseFloat(u.factor) || 0));
+      u.price = price;
+      const inp = card.querySelector(`.pu-price[data-i="${i}"]`);
+      if (inp) inp.value = fmt(price);
+    });
+  }
+  drawUnits();
+  $("#pfUnits", card).addEventListener("input", (e) => {
+    const nm = e.target.closest(".pu-name");
+    if (nm) { formUnits[+nm.dataset.i].name = nm.value; return; }
+    const fc = e.target.closest(".pu-factor");
+    if (fc) {
+      const u = formUnits[+fc.dataset.i];
+      u.factor = parseFloat(fc.value) || 0;
+      const price = Math.round((basePrice() || 0) * u.factor);
+      u.price = price;
+      const inp = card.querySelector(`.pu-price[data-i="${fc.dataset.i}"]`);
+      if (inp) inp.value = fmt(price);
+    }
+  });
+  $("#pfUnits", card).addEventListener("click", (e) => {
+    const b = e.target.closest("[data-unitrm]");
+    if (!b) return;
+    formUnits.splice(+b.dataset.unitrm, 1);
+    drawUnits();
+  });
+  $("#pfAddUnit", card).onclick = () => { formUnits.push({ name: "", factor: 0, price: 0 }); drawUnits(); };
+  card.querySelector('[name="price"]').addEventListener("input", syncUnitPrices);
   $("#pfLots", card).addEventListener("click", (e) => {
     const b = e.target.closest("[data-lotrm]");
     if (!b) return;
@@ -406,7 +455,7 @@ function openProductForm(p) {
     $("#pfLotCode", card).value = ""; $("#pfLotExp", card).value = ""; $("#pfLotQty", card).value = "";
     drawLots();
   };
-  card.querySelector('[name="unit"]').addEventListener("input", drawLots);
+  card.querySelector('[name="unit"]').addEventListener("input", () => { drawLots(); drawUnits(); });
   // Cảnh báo trùng mã hàng / mã vạch ngay khi gõ xong (quét mã vạch cũng vậy).
   const codeInput = card.querySelector('[name="code"]');
   const showCodeDup = () => {
@@ -437,8 +486,13 @@ function openProductForm(p) {
   $("#productForm", card).onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const units = String(fd.get("units") || "").split("\n").map((l) => l.split("|").map((s) => s.trim())).filter((a) => a[0])
-      .map(([name, factor, price]) => ({ name, factor: parseFloat(factor) || 1, price: parseFloat(price) || 0 }));
+    const baseP = moneyInput(fd.get("price"));
+    const units = formUnits.filter((u) => (u.name || "").trim()).map((u) => ({
+      name: u.name.trim(),
+      factor: parseFloat(u.factor) || 1,
+      // Số tiền đơn vị phụ tự nhân theo giá bán × số lượng.
+      price: Math.round(baseP * (parseFloat(u.factor) || 0)),
+    }));
     const db = DB.get();
     let code = (fd.get("code") || "").trim();
     if (!code) {
@@ -570,7 +624,7 @@ function openImportModal() {
     <input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none">
     <div class="modal-actions" style="justify-content:flex-start">
       <button id="impPickBtn" class="btn btn-primary" type="button">📂 Chọn file để nhập</button>
-      <button id="impExportBtn" class="btn btn-outline" type="button">⬇ Tải file hàng hóa</button>
+      <button id="impExportBtn" class="btn btn-outline" type="button">⬇ File excel mẫu</button>
       <button class="btn btn-ghost" type="button" onclick="closeModal()">Đóng</button>
     </div>
     <div id="impResult" class="muted" style="margin-top:12px"></div>`);
@@ -1049,7 +1103,8 @@ function renderCashbook() {
   const opening = entries.filter((x) => x.category === "Quỹ đầu ngày").reduce((s, x) => s + x.amount, 0);
   const cashSales = db.orders.filter((o) => o.date === date && o.status === "completed" && o.payment === "cash").reduce((s, o) => s + orderStats(o).revenue, 0);
   // Phiếu "Bán hàng" tiền mặt đã được tính trong cashSales nên loại khỏi tổng phiếu thu để khỏi tính 2 lần.
-  const entriesInExSales = entries.filter((x) => x.type === "in" && x.category !== "Bán hàng");
+  // Phiếu "Bán hàng ghi nợ" cũng vậy: đơn ghi nợ đã được tính trong nonCashOrders.
+  const entriesInExSales = entries.filter((x) => x.type === "in" && x.category !== "Bán hàng" && x.category !== "Bán hàng ghi nợ");
   const nonCashOrders = db.orders.filter((o) => o.date === date && o.status === "completed" && o.payment !== "cash").reduce((s, o) => s + orderStats(o).revenue, 0);
   const totalIn = cashSales + entriesInExSales.reduce((s, x) => s + x.amount, 0) + nonCashOrders;
   const totalOut = entries.filter((x) => x.type === "out").reduce((s, x) => s + x.amount, 0);

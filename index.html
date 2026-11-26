@@ -120,7 +120,7 @@
           <button id="categoryManageBtn" class="btn btn-outline" type="button">🗂 Nhóm hàng</button>
           <button id="stockCheckBtn" class="btn btn-outline" type="button">📋 Kiểm kho</button>
           <button id="importProductsBtn" class="btn btn-outline" type="button">⇪ Import file</button>
-          <button id="templateProductsBtn" class="btn btn-outline" type="button">⇩ Tải file hàng hóa</button>
+          <button id="templateProductsBtn" class="btn btn-outline" type="button">⇩ File excel mẫu</button>
           <button id="addProductBtn" class="btn btn-primary" type="button">+ Tạo mới</button>
         </div>
       </div>
@@ -297,8 +297,9 @@
             <button type="button" class="pay-box" data-pay="debt">📒<span>Ghi nợ</span></button>
           </div>
           <div class="pos-summary">
-            <div class="row"><span>Khách đưa</span><input id="posPaid" type="number" min="0" value="0" class="mini-input"></div>
-            <div class="row"><span>Tiền thừa</span><b id="posChange">0</b></div>
+            <div id="posPaidSuggest" class="paid-suggest" hidden></div>
+            <div class="row" id="posPaidRow"><span>Khách đưa</span><input id="posPaid" type="number" min="0" value="0" class="mini-input"></div>
+            <div class="row" id="posChangeRow"><span>Tiền thừa</span><b id="posChange">0</b></div>
           </div>
           <div class="pos-actions">
             <button id="posSave" class="btn btn-primary" type="button">LƯU</button>
