@@ -8,6 +8,20 @@ let posPaidManual = false;
 // Số lượng hiển thị tối đa 3 số lẻ (VD 2.366 Kg), bỏ số 0 thừa.
 const fmtQty = (q) => { const n = parseFloat((+q || 0).toFixed(3)); return isNaN(n) ? 0 : n; };
 
+// ----- Bán hàng trên điện thoại: 2 màn hình riêng -----
+// "pick": chỉ hiện phần tìm kiếm + danh sách hàng hóa.
+// "bill": chỉ hiện hóa đơn, phía trên có thanh tìm kiếm để quay lại thêm hàng.
+// Máy tính giữ nguyên bố cục 2 cột cạnh nhau.
+let posMobileView = "pick";
+const isMobilePos = () => window.matchMedia("(max-width: 960px)").matches;
+function setPosMobileView(v) {
+  posMobileView = v;
+  const sec = $("#view-pos");
+  sec.classList.toggle("pos-m-bill", v === "bill");
+  sec.classList.toggle("pos-m-pick", v === "pick");
+  window.scrollTo({ top: 0 });
+}
+
 function renderPosCustomer() {
   const picked = $("#posCustPicked"), input = $("#posCustSearch");
   if (posCustomer) {
@@ -59,10 +73,13 @@ function renderPOS() {
     (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)) &&
     (p.stock || 0) > 0);
   $("#posGrid").innerHTML = list.map((p) => `<button class="pos-item" data-id="${p.id}" type="button">
-    <span class="thumb" style="width:100%;height:64px;border-radius:8px;margin-bottom:6px">${p.image ? `<img src="${p.image}" alt="">` : "🖼️"}</span>
-    <span class="pname">${esc(p.name)}</span><br>
-    <span class="pprice">${fmt(p.price)}đ</span><br>
-    <span class="pstock">Tồn: ${p.stock} ${esc(p.unit)}</span>
+    <span class="thumb">${p.image ? `<img src="${p.image}" alt="">` : "🖼️"}</span>
+    <span class="pinfo">
+      <span class="pname">${esc(p.name)}</span>
+      <span class="pcode">Mã: ${esc(p.code)}</span>
+      <span class="pprice">${fmt(p.price)}đ</span>
+      <span class="pstock">Tồn: ${p.stock} ${esc(p.unit)}</span>
+    </span>
   </button>`).join("") || `<p class="muted" style="grid-column:1/-1">Không còn hàng trong kho hoặc không khớp tìm kiếm.</p>`;
   renderPosCart();
 }
@@ -145,19 +162,31 @@ $("#posPayBoxes").addEventListener("click", (e) => {
   if (b) setPosPayment(b.dataset.pay);
 });
 
+// Thêm 1 mặt hàng vào hóa đơn (dùng chung cho chạm vào lưới hàng và quét mã vạch).
+function addProductToCart(p) {
+  const ex = posCart.find((it) => it.productId === p.id && it.unit === p.unit);
+  if (ex) {
+    if (ex.qty + 1 > p.stock) { alert(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); return false; }
+    ex.qty = fmtQty(ex.qty + 1);
+  } else {
+    if (p.stock < 1) { alert(`"${p.name}" đã hết hàng.`); return false; }
+    posCart.push({ productId: p.id, name: p.name, unit: p.unit, qty: 1, price: p.price, costPrice: p.costPrice, discount: 0 });
+  }
+  renderPosCart();
+  return true;
+}
 $("#posGrid").addEventListener("click", (e) => {
   const btn = e.target.closest(".pos-item");
   if (!btn) return;
   const p = DB.get().products.find((x) => x.id === btn.dataset.id);
   if (!p) return;
-  const ex = posCart.find((it) => it.productId === p.id && it.unit === p.unit);
-  if (ex) {
-    if (ex.qty + 1 > p.stock) { alert(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); return; }
-    ex.qty = fmtQty(ex.qty + 1);
-  } else {
-    posCart.push({ productId: p.id, name: p.name, unit: p.unit, qty: 1, price: p.price, costPrice: p.costPrice, discount: 0 });
-  }
-  renderPosCart();
+  // Điện thoại: chọn hàng xong là chuyển sang cửa sổ hóa đơn.
+  if (addProductToCart(p) && isMobilePos()) setPosMobileView("bill");
+});
+// Thanh tìm hàng phía trên hóa đơn (điện thoại): bấm là quay lại danh sách hàng.
+$("#posBillSearch").addEventListener("click", () => {
+  setPosMobileView("pick");
+  setTimeout(() => $("#posSearch").focus(), 50);
 });
 $("#posLines").addEventListener("click", (e) => {
   const q = e.target.closest("[data-d]");
@@ -287,7 +316,7 @@ function openPosQuickAddCustomer(prefill) {
 }
 $("#posClear").addEventListener("click", () => {
   if (!posCart.length) return;
-  if (confirm("Xóa toàn bộ hóa đơn đang tính?")) { posCart = []; posCustomer = null; posPaidManual = false; renderPOS(); }
+  if (confirm("Xóa toàn bộ hóa đơn đang tính?")) { posCart = []; posCustomer = null; posPaidManual = false; renderPOS(); setPosMobileView("pick"); }
 });
 
 async function saveOrder(printAfter) {
@@ -351,6 +380,69 @@ async function saveOrder(printAfter) {
   if (printAfter) printOrder(order);
   else alert(`Đã lưu hóa đơn ${order.code} — ${fmt(t.total)}đ.`);
   renderPOS();
+  setPosMobileView("pick"); // đơn mới: về lại màn hình chọn hàng
 }
 $("#posSave").addEventListener("click", () => saveOrder(false));
 $("#posSavePrint").addEventListener("click", () => saveOrder(true));
+
+// ----- Quét mã vạch bằng camera điện thoại -----
+// Thư viện html5-qrcode (tự lưu trong app, js/vendor/) đọc các loại mã vạch
+// 1D thường gặp: EAN-13, EAN-8, UPC-A/E, CODE 128/39/93, ITF, CODABAR.
+let scanObj = null, scanDone = false;
+function stopScan() {
+  if (!scanObj) return;
+  const s = scanObj; scanObj = null;
+  s.stop().then(() => s.clear()).catch(() => { try { s.clear(); } catch (_) {} });
+}
+// Dừng camera dù cửa sổ đóng bằng cách nào (nút Đóng, bấm nền, phím Esc).
+new MutationObserver(() => { if ($("#modal").hidden) stopScan(); }).observe($("#modal"), { attributes: true, attributeFilter: ["hidden"] });
+function openScanModal() {
+  if (typeof Html5Qrcode === "undefined") {
+    alert("Không tải được thư viện quét mã. Kiểm tra mạng rồi thử lại.");
+    return;
+  }
+  scanDone = false;
+  const card = openModal(`<h3>Quét mã vạch</h3>
+    <p class="muted">Đưa mã vạch trên bao bì vào khung hình, app sẽ tự nhận mã và thêm hàng vào hóa đơn.</p>
+    <div id="scanReader" style="width:100%;border-radius:8px;overflow:hidden;background:#000"></div>
+    <p class="muted" id="scanStatus">Đang mở camera…</p>
+    <div class="modal-actions"><button type="button" class="btn btn-outline" id="scanClose">Đóng</button></div>`);
+  $("#scanClose", card).onclick = () => { stopScan(); closeModal(); };
+  const scanner = new Html5Qrcode("scanReader");
+  scanObj = scanner;
+  const formats = (typeof Html5QrcodeSupportedFormats !== "undefined") ? [
+    Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93, Html5QrcodeSupportedFormats.ITF,
+    Html5QrcodeSupportedFormats.CODABAR] : undefined;
+  scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 140 }, formatsToSupport: formats },
+    (code) => {
+      if (scanDone) return;
+      scanDone = true;
+      stopScan(); closeModal();
+      handleScannedCode(code);
+    },
+    () => { /* quét chưa ra mã — bỏ qua, vẫn quét tiếp */ }
+  ).catch((err) => {
+    const st = $("#scanStatus");
+    if (!st) return;
+    const msg = String(err || "");
+    st.textContent = /permission|denied|NotAllowed/i.test(msg)
+      ? "Điện thoại chưa cho phép dùng camera. Sếp mở Cài đặt trình duyệt → cho phép Camera rồi thử lại."
+      : "Không mở được camera (" + msg + "). Thử lại hoặc gõ mã bằng tay.";
+  });
+}
+// Mã quét được phải trùng "Mã hàng" của sản phẩm thì mới thêm vào hóa đơn.
+function handleScannedCode(code) {
+  const p = findProductByCode(DB.get(), code);
+  if (!p) {
+    $("#posSearch").value = code;
+    renderPOS();
+    setPosMobileView("pick");
+    alert(`Không tìm thấy mặt hàng có mã ${code}. Kiểm tra lại Mã hàng của sản phẩm.`);
+    return;
+  }
+  if (addProductToCart(p) && isMobilePos()) setPosMobileView("bill");
+}
+$("#posScanBtn").addEventListener("click", openScanModal);

@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v20";
+const APP_VERSION = "v21";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -133,6 +133,8 @@ function showView(name) {
   $$(".nav-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   $$(".bn-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   ({ dashboard: renderDashboard, products: renderProducts, orders: renderOrders, customers: renderCustomers, employees: renderEmployees, cashbook: renderCashbook, print: renderPrintSettings, pos: renderPOS }[name] || (() => {}))();
+  // Vào tab Bán hàng trên điện thoại: chỉ hiện phần tìm kiếm hàng hóa.
+  if (name === "pos" && typeof setPosMobileView === "function") setPosMobileView("pick");
   window.scrollTo({ top: 0 });
 }
 $("#topnav").addEventListener("click", (e) => { const b = e.target.closest(".nav-tab"); if (b) showView(b.dataset.view); });

@@ -169,16 +169,27 @@ main { max-width: 1720px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 /* ---------- POS ---------- */
 .pos-layout { display: grid; grid-template-columns: 1fr 440px; gap: 14px; align-items: start; }
 .pos-search { display: flex; gap: 8px; margin-bottom: 10px; }
-.pos-search input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; }
+.pos-search-wrap { position: relative; flex: 1; display: flex; }
+.pos-search input { flex: 1; width: 100%; padding: 10px 44px 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; }
+/* Nút quét mã vạch nằm một bên góc trong ô tìm kiếm. */
+.scan-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; cursor: pointer; border-radius: 8px; }
+.scan-btn:active { background: #eef2f7; }
+.scan-icon { width: 24px; height: 24px; display: block; }
 .pos-search select { padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; background: #fff; }
 .pos-customer-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; font-size: 14px; flex-wrap: wrap; }
 .pos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .pos-item { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px; cursor: pointer; text-align: left; }
 .pos-item:hover { border-color: var(--blue); }
+.pos-item .thumb { display: flex; align-items: center; justify-content: center; width: 100%; height: 64px; border-radius: 8px; margin-bottom: 6px; background: #f1f5f9; font-size: 28px; overflow: hidden; }
+.pos-item .thumb img { width: 100%; height: 100%; object-fit: cover; }
+.pos-item .pinfo { display: block; }
 .pos-item .pname { font-size: 13.5px; display: block; min-height: 36px; }
-.pos-item .pprice { color: var(--blue); font-weight: 700; font-size: 15px; }
-.pos-item .pstock { color: var(--muted); font-size: 12px; }
+.pos-item .pcode { display: block; color: var(--muted); font-size: 12px; }
+.pos-item .pprice { display: block; color: var(--blue); font-weight: 700; font-size: 15px; }
+.pos-item .pstock { display: block; color: var(--muted); font-size: 12px; }
 .pos-cart { position: sticky; top: 72px; }
+/* Thanh tìm hàng phía trên hóa đơn — chỉ hiện trên điện thoại (màn hình hóa đơn). */
+.pos-bill-search { display: none; width: 100%; text-align: left; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; color: var(--muted); font-size: 15px; cursor: pointer; margin-bottom: 10px; }
 .pos-cust { position: relative; margin-bottom: 8px; }
 .pos-cust > input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14.5px; }
 .pos-cust-results { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,.15); z-index: 20; max-height: 260px; overflow: auto; }
@@ -268,6 +279,16 @@ select.mini-input { width: auto; }
   .pos-cart { position: static; }
   .print-grid { grid-template-columns: 1fr; }
   .stat-grid, .stat-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  /* Điện thoại: Bán hàng chỉ hiện 1 màn hình — chọn hàng HOẶC hóa đơn. */
+  #view-pos.pos-m-bill .pos-products { display: none; }
+  #view-pos.pos-m-pick .pos-cart { display: none; }
+  .pos-bill-search { display: block; }
+  /* Danh sách hàng hóa dạng dòng (1 cột) cho dễ chọn trên điện thoại. */
+  .pos-grid { grid-template-columns: 1fr; }
+  .pos-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+  .pos-item .thumb { width: 56px; height: 56px; flex: none; margin-bottom: 0; font-size: 24px; }
+  .pos-item .pinfo { flex: 1; min-width: 0; }
+  .pos-item .pname { min-height: 0; }
 }
 @media (max-width: 720px) {
   .topnav { display: none; }
