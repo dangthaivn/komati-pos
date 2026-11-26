@@ -63,7 +63,7 @@
         <span id="expiryBell" class="bell" title="Sắp hết hạn">🔔<b id="expiryCount" hidden>0</b></span>
         <span id="currentUserLabel" class="user-label"></span>
         <button id="posBtn" class="btn btn-pos" type="button">🛒 Bán hàng</button>
-        <button id="logoutBtn" class="btn btn-ghost" type="button" title="Đăng xuất">⎋</button>
+        <button id="logoutBtn" class="btn btn-ghost" type="button" title="Đăng xuất"><img src="data:image/png;base64,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" class="logout-icon" alt="Đăng xuất"></button>
       </div>
     </div>
   </header>
@@ -117,9 +117,10 @@
       <div class="page-head">
         <h2>Hàng hóa</h2>
         <div class="head-actions">
+          <button id="categoryManageBtn" class="btn btn-outline" type="button">🗂 Nhóm hàng</button>
           <button id="stockCheckBtn" class="btn btn-outline" type="button">📋 Kiểm kho</button>
           <button id="importProductsBtn" class="btn btn-outline" type="button">⇪ Import file</button>
-          <button id="templateProductsBtn" class="btn btn-outline" type="button">⇩ File mẫu Excel</button>
+          <button id="templateProductsBtn" class="btn btn-outline" type="button">⇩ Tải file hàng hóa</button>
           <button id="addProductBtn" class="btn btn-primary" type="button">+ Tạo mới</button>
         </div>
       </div>
@@ -138,7 +139,6 @@
           <tbody id="productTable"></tbody>
         </table>
       </div>
-      <input id="productFileInput" type="file" accept=".xlsx,.xls,.csv" hidden>
     </section>
 
     <!-- ===== ĐƠN HÀNG ===== -->

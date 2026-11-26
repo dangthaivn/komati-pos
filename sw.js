@@ -1,7 +1,7 @@
 /* KOMATI service worker — cache-first cho app shell.
  * QUAN TRỌNG: tăng số phiên bản CACHE sau MỖI lần deploy, nếu không
  * trình duyệt sẽ tiếp tục hiện giao diện cũ (bài học từ app chấm công). */
-const CACHE = "komati-v8";
+const CACHE = "komati-v9";
 const ASSETS = [
   "./",
   "./index.html",

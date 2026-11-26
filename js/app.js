@@ -127,7 +127,7 @@ function openMoreMenu() {
   const items = [["employees", "👥 Nhân viên"], ["cashbook", "💰 Sổ quỹ"], ["print", "🖨️ In ấn"]];
   const card = openModal(`<h3>Mục khác</h3><div style="display:grid;gap:8px;margin-top:12px">
     ${items.filter(([v]) => Auth.can(v)).map(([v, l]) => `<button class="btn btn-outline" data-go="${v}" type="button" style="text-align:left">${l}</button>`).join("")}
-    <button class="btn btn-outline" id="moreLogout" type="button" style="text-align:left">⎋ Đăng xuất</button></div>`);
+    <button class="btn btn-outline" id="moreLogout" type="button" style="text-align:left"><img src="data:image/png;base64,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" class="logout-icon logout-icon-dark" alt=""> Đăng xuất</button></div>`);
   $$("[data-go]", card).forEach((b) => (b.onclick = () => { closeModal(); showView(b.dataset.go); }));
   $("#moreLogout", card).onclick = () => { Auth.logout(); location.reload(); };
 }
@@ -496,58 +496,204 @@ function openStockIn(p) {
   };
 }
 
-/* ---------- Import / File mẫu Excel ---------- */
+/* ---------- Import / Xuất file hàng hóa ---------- */
 function downloadBlob(blob, filename) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = filename; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 function xlsxAvailable() { return typeof XLSX !== "undefined"; }
-$("#templateProductsBtn").addEventListener("click", () => {
-  const rows = [["Mã hàng", "Tên hàng", "Nhóm hàng", "Giá vốn", "Giá bán", "Đơn vị tính", "Tồn kho", "Hạn sử dụng (yyyy-mm-dd)"],
-    ["SP000001", "Quả Anh Đào (Cherry) Đỏ Royal Lynn ÚC", "Trái cây nhập khẩu", 640000, 775000, "Kg", 4.5, ""],
-    ["SP000002", "Quả quýt tươi đóng 2kg/hộp", "Trái cây Việt", 126000, 180000, "Hộp", 12.5, "2026-12-31"]];
+
+// Chuẩn hóa tên cột để đối chiếu: bỏ dấu, viết thường, bỏ ký tự lạ.
+function normHeader(s) {
+  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+function findCol(headers, candidates) {
+  const normed = headers.map(normHeader);
+  for (const c of candidates) {
+    const i = normed.indexOf(normHeader(c));
+    if (i >= 0) return i;
+  }
+  // Tiêu đề có thêm chú thích trong ngoặc, VD "Hạn sử dụng (yyyy-mm-dd)".
+  for (const c of candidates) {
+    const nc = normHeader(c);
+    if (nc.length < 4) continue;
+    const i = normed.findIndex((h) => h.startsWith(nc));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+// Đọc CSV kể cả ô chứa dấu phẩy trong dấu ngoặc kép.
+function parseCsvText(text) {
+  const rows = [];
+  let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ",") { row.push(cur); cur = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cur); cur = ""; if (row.length > 1 || row[0] !== "") rows.push(row); row = [];
+    } else cur += ch;
+  }
+  if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+// Xuất toàn bộ hàng hóa hiện tại ra Excel (cũng là file mẫu để nhập lại).
+function productExportRows() {
+  const db = DB.get();
+  const head = ["Mã hàng", "Tên hàng hóa", "Đơn vị tính", "Nhóm hàng", "Link ảnh sản phẩm", "Giá bán", "Giá vốn", "Tồn kho", "Hạn sử dụng"];
+  const catName = (id) => (db.categories.find((c) => c.id === id) || {}).name || "";
+  const rows = db.products.map((p) => [p.code, p.name, p.unit, catName(p.categoryId), p.image || "", p.price || 0, p.costPrice || 0, p.stock || 0, p.expiryDate || ""]);
+  return [head, ...rows];
+}
+function downloadProductsExcel() {
+  const rows = productExportRows();
+  const stamp = todayStr();
   if (xlsxAvailable()) {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "HangHoa");
-    XLSX.writeFile(wb, "mau_hang_hoa_komati.xlsx");
+    XLSX.writeFile(wb, `hang-hoa-${stamp}.xlsx`);
   } else {
-    downloadBlob(new Blob(["\uFEFF" + rows.map((r) => r.join(",")).join("\n")], { type: "text/csv" }), "mau_hang_hoa_komati.csv");
+    downloadBlob(new Blob(["﻿" + rows.map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv" }), `hang-hoa-${stamp}.csv`);
   }
-});
-$("#importProductsBtn").addEventListener("click", () => $("#productFileInput").click());
-$("#productFileInput").addEventListener("change", async (e) => {
+}
+$("#templateProductsBtn").addEventListener("click", downloadProductsExcel);
+
+// Cửa sổ Import file: chọn file, tải file hàng hóa hiện tại, xem kết quả.
+function openImportModal() {
+  openModal(`<h3>⬆ Nhập hàng hóa từ Excel</h3>
+    <p class="muted">Chọn file Excel (.xlsx) hoặc CSV có các cột: <b>Mã hàng, Tên hàng hóa, Đơn vị tính, Nhóm hàng, Link ảnh sản phẩm, Giá bán, Giá vốn, Tồn kho, Hạn sử dụng</b> (thứ tự cột tùy ý, không cần đúng thứ tự). Mặt hàng trùng <b>Mã hàng</b> sẽ được cập nhật thông tin thay vì tạo mới.</p>
+    <input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none">
+    <div class="modal-actions" style="justify-content:flex-start">
+      <button id="impPickBtn" class="btn btn-primary" type="button">📂 Chọn file để nhập</button>
+      <button id="impExportBtn" class="btn btn-outline" type="button">⬇ Tải file hàng hóa</button>
+      <button class="btn btn-ghost" type="button" onclick="closeModal()">Đóng</button>
+    </div>
+    <div id="impResult" class="muted" style="margin-top:12px"></div>`);
+  $("#impPickBtn").addEventListener("click", () => $("#impFile").click());
+  $("#impExportBtn").addEventListener("click", downloadProductsExcel);
+  $("#impFile").addEventListener("change", handleProductImport);
+}
+$("#importProductsBtn").addEventListener("click", openImportModal);
+
+async function handleProductImport(e) {
   const f = e.target.files[0]; if (!f) return;
-  const db = DB.get();
+  const res = $("#impResult");
+  const fail = (msg) => { if (res) res.innerHTML = `<span style="color:var(--red)">${esc(msg)}</span>`; e.target.value = ""; };
   let rows = [];
   try {
-    if (xlsxAvailable() && /\.xlsx?$/i.test(f.name)) {
+    if (/\.xlsx?$/i.test(f.name)) {
+      if (!xlsxAvailable()) { fail("Không tải được thư viện đọc file Excel. Kiểm tra mạng rồi thử lại."); return; }
       const buf = await f.arrayBuffer();
       const wb = XLSX.read(buf);
       rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
     } else {
-      const text = await f.text();
-      rows = text.split(/\r?\n/).map((l) => l.split(",").map((s) => s.replace(/^"|"$/g, "").trim()));
+      rows = parseCsvText(await f.text());
     }
-  } catch (err) { alert("Không đọc được file. Hãy dùng file Excel mẫu của KOMATI."); e.target.value = ""; return; }
-  let added = 0;
+  } catch (err) { fail("Không đọc được file. Hãy dùng file Excel theo mẫu của KOMATI."); return; }
+  if (!rows.length) { fail("File trống, không có dữ liệu."); return; }
+  const headers = rows[0].map((h) => String(h ?? ""));
+  // Đọc theo TÊN cột nên file có thứ tự cột nào cũng nhập đúng.
+  const col = {
+    code: findCol(headers, ["Mã hàng", "Mã"]),
+    name: findCol(headers, ["Tên hàng hóa", "Tên hàng", "Tên"]),
+    unit: findCol(headers, ["Đơn vị tính", "Đơn vị"]),
+    cat: findCol(headers, ["Nhóm hàng", "Nhóm"]),
+    image: findCol(headers, ["Link ảnh sản phẩm", "Link ảnh", "Ảnh", "Hình ảnh"]),
+    price: findCol(headers, ["Giá bán"]),
+    cost: findCol(headers, ["Giá vốn"]),
+    stock: findCol(headers, ["Tồn kho", "Tồn"]),
+    expiry: findCol(headers, ["Hạn sử dụng"]),
+  };
+  if (col.name < 0) { fail("Không tìm thấy cột Tên hàng hóa trong file. Kiểm tra lại tiêu đề cột."); return; }
+  const db = DB.get();
+  let added = 0, updated = 0, skipped = 0, autoN = db.products.length + 1;
   for (let i = 1; i < rows.length; i++) {
-    const r = rows[i]; if (!r || !r[1]) continue;
-    const catName = String(r[2] || "Chưa phân loại").trim();
+    const r = rows[i]; if (!r) continue;
+    const val = (idx) => idx >= 0 ? String(r[idx] ?? "").trim() : "";
+    const name = val(col.name);
+    if (!name) { skipped++; continue; }
+    const code = val(col.code) || ("SP" + String(autoN++).padStart(6, "0"));
+    const catName = val(col.cat) || "Chưa phân loại";
     let cat = db.categories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
     if (!cat) { cat = { id: DB.uid("cat"), name: catName }; await DB.put("categories", cat); }
-    await DB.put("products", {
-      id: DB.uid("sp"), code: String(r[0] || "").trim() || ("SP" + String(db.products.length + 1).padStart(6, "0")),
-      name: String(r[1]).trim(), categoryId: cat.id,
-      costPrice: moneyInput(r[3]), price: moneyInput(r[4]), unit: String(r[5] || "Cái").trim(),
-      units: [], stock: parseFloat(r[6]) || 0, expiryDate: String(r[7] || "").trim() || null, image: "",
-    });
-    added++;
+    const unit = val(col.unit) || "Cái";
+    const price = moneyInput(col.price >= 0 ? r[col.price] : 0);
+    const cost = moneyInput(col.cost >= 0 ? r[col.cost] : 0);
+    const stock = moneyInput(col.stock >= 0 ? r[col.stock] : 0);
+    const expiry = val(col.expiry) || null;
+    const image = val(col.image);
+    const existing = db.products.find((p) => p.code.toLowerCase() === code.toLowerCase());
+    if (existing) {
+      existing.name = name; existing.unit = unit; existing.categoryId = cat.id;
+      existing.price = price; existing.costPrice = cost; existing.image = image;
+      existing.expiryDate = expiry;
+      // Chỉ cập nhật tồn kho khi mặt hàng chưa quản lý theo lô (lô quản lý tồn riêng).
+      if (!(existing.lots && existing.lots.length)) existing.stock = stock;
+      await DB.put("products", existing);
+      updated++;
+    } else {
+      await DB.put("products", {
+        id: DB.uid("sp"), code, name, categoryId: cat.id,
+        costPrice: cost, price, unit, units: [], stock,
+        expiryDate: expiry, image,
+      });
+      added++;
+    }
   }
   e.target.value = "";
-  alert(`Đã tải lên ${added} mặt hàng.`);
+  if (res) res.innerHTML = `Đã nhập xong: <b>${added} mặt hàng mới</b>, <b>${updated} mặt hàng cập nhật</b>${skipped ? `, ${skipped} dòng bỏ qua (thiếu tên hàng)` : ""}.`;
   renderProducts();
-});
+}
+
+/* ---------- Quản lý Nhóm hàng ---------- */
+function openCategoryModal() {
+  const db = DB.get();
+  const count = (id) => db.products.filter((p) => p.categoryId === id).length;
+  openModal(`<h3>🗂 Nhóm hàng</h3>
+    <p class="muted">Thêm, đổi tên hoặc xóa nhóm hàng. Nhóm đang có hàng hóa thì không xóa được.</p>
+    <div class="toolbar" style="margin-top:10px">
+      <input id="catNewName" type="text" placeholder="Tên nhóm hàng mới…" autocomplete="off" style="flex:1">
+      <button id="catAddBtn" class="btn btn-primary" type="button">+ Thêm nhóm</button>
+    </div>
+    <div id="catList">${db.categories.map((c) => `<div class="rank-row"><span>${esc(c.name)} <span class="muted">(${count(c.id)} mặt hàng)</span></span><span style="white-space:nowrap">
+      <button class="link-btn" data-act="rename" data-id="${c.id}" type="button">Đổi tên</button>
+      <button class="link-btn" data-act="del" data-id="${c.id}" type="button" style="color:var(--red)">Xóa</button></span></div>`).join("") || `<p class="muted">Chưa có nhóm hàng nào.</p>`}</div>
+    <div class="modal-actions"><button class="btn btn-ghost" type="button" onclick="closeModal()">Đóng</button></div>`);
+  $("#catAddBtn").addEventListener("click", async () => {
+    const name = $("#catNewName").value.trim();
+    if (!name) { alert("Nhập tên nhóm hàng."); return; }
+    if (db.categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) { alert(`Nhóm "${name}" đã có rồi.`); return; }
+    await DB.put("categories", { id: DB.uid("cat"), name });
+    closeModal(); openCategoryModal(); renderProducts();
+  });
+  $("#catList").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-act]"); if (!btn) return;
+    const c = db.categories.find((x) => x.id === btn.dataset.id); if (!c) return;
+    if (btn.dataset.act === "rename") {
+      const name = prompt("Tên nhóm hàng mới:", c.name);
+      if (name === null) return;
+      const nn = name.trim();
+      if (!nn) { alert("Tên nhóm không được để trống."); return; }
+      if (db.categories.some((x) => x.id !== c.id && x.name.toLowerCase() === nn.toLowerCase())) { alert(`Nhóm "${nn}" đã có rồi.`); return; }
+      c.name = nn; await DB.put("categories", c);
+      closeModal(); openCategoryModal(); renderProducts();
+    }
+    if (btn.dataset.act === "del") {
+      const n = count(c.id);
+      if (n > 0) { alert(`Nhóm "${c.name}" đang có ${n} mặt hàng, không xóa được. Chuyển các mặt hàng sang nhóm khác trước.`); return; }
+      if (await confirmBox("Xóa nhóm hàng", `Xóa nhóm "${c.name}"?`)) {
+        await DB.remove("categories", c.id);
+        closeModal(); openCategoryModal(); renderProducts();
+      }
+    }
+  });
+}
+$("#categoryManageBtn").addEventListener("click", openCategoryModal);
 
 /* ---------- ĐƠN HÀNG ---------- */
 let orderSel = new Set();
@@ -1065,9 +1211,10 @@ function openStockCheck() {
     <p class="muted">Chọn các mặt hàng còn tồn để kiểm. Nhập số lượng đếm thực tế — tồn kho sẽ được cập nhật theo số đếm. Hàng có hạn sử dụng được kiểm theo từng lô: chọn đúng lô cần kiểm (VD: Bánh trứng có 2 lô HSD 26/12/2026 và 26/10/2027 thì đếm riêng từng lô). Nút <b>Hết hàng</b> đưa số lượng lô đó về 0.</p>
     <div class="toolbar" style="margin-top:10px">
       <input id="scSearch" type="search" placeholder="Tìm theo mã, tên hàng, mã lô…" autocomplete="off">
+      <select id="scCategoryFilter"><option value="">Tất cả nhóm hàng</option>${db.categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
       <label class="check" style="margin:0"><input id="scOnlyStock" type="checkbox" checked> Chỉ hiện hàng còn tồn</label>
     </div>
-    <label class="check"><input id="scCheckAll" type="checkbox" checked> Chọn tất cả mặt hàng đang hiện</label>
+    <label class="check"><input id="scCheckAll" type="checkbox"> Chọn tất cả mặt hàng đang hiện</label>
     <div style="max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:8px">
       <table class="tbl" style="min-width:0"><thead><tr><th class="cb"></th><th>Sản phẩm / Lô hàng</th><th class="num">Tồn hệ thống</th><th class="num">Đếm thực tế</th><th class="num">Chênh lệch</th><th></th></tr></thead>
       <tbody id="scTable"></tbody></table>
@@ -1080,11 +1227,15 @@ function openStockCheck() {
       <button type="button" class="btn btn-primary" id="scSave">Lưu kiểm kho</button>
     </div>`, "xl");
 
+  // Tích chọn do admin tự quyết: lọc/tìm kiếm KHÔNG tự tích hàng loạt,
+  // chỉ có ô "Chọn tất cả" mới tích hàng loạt các dòng đang hiện.
+  const scSel = new Set(); // khóa "productId|lotId"
+  let scCat = "";
   function lotRows(p) {
     const lots = p.lots || [];
     if (!lots.length) {
       return `<tr data-pid="${p.id}" data-lot="">
-      <td class="cb"><input type="checkbox" class="sc-check" data-id="${p.id}" data-lot="" checked></td>
+      <td class="cb"><input type="checkbox" class="sc-check" data-id="${p.id}" data-lot="" ${scSel.has(p.id + "|") ? "checked" : ""}></td>
       <td><span class="pname">${esc(p.name)}</span><br><span class="psub">${esc(p.code)} · ${esc(p.unit)}</span></td>
       <td class="num" data-sys="${p.stock}">${p.stock} ${esc(p.unit)}</td>
       <td class="num"><input type="number" class="mini-input sc-counted" data-id="${p.id}" data-lot="" min="0" step="0.01" value="${p.stock}" style="width:80px;text-align:right"></td>
@@ -1094,7 +1245,7 @@ function openStockCheck() {
     }
     const head = `<tr class="sc-prod" data-pid="${p.id}"><td></td><td colspan="5"><span class="pname">${esc(p.name)}</span> <span class="psub">${esc(p.code)} · ${esc(p.unit)} · tồn tổng ${p.stock}</span></td></tr>`;
     return head + lots.map((l) => `<tr class="sc-lot" data-pid="${p.id}" data-lot="${l.id}">
-      <td class="cb"><input type="checkbox" class="sc-check" data-id="${p.id}" data-lot="${l.id}" checked></td>
+      <td class="cb"><input type="checkbox" class="sc-check" data-id="${p.id}" data-lot="${l.id}" ${scSel.has(p.id + "|" + l.id) ? "checked" : ""}></td>
       <td>↳ <b>${esc(l.code)}</b><br><span class="psub">HSD: ${l.expiryDate ? dLabel(l.expiryDate) : "không có"}</span></td>
       <td class="num" data-sys="${l.qty}">${l.qty} ${esc(p.unit)}</td>
       <td class="num"><input type="number" class="mini-input sc-counted" data-id="${p.id}" data-lot="${l.id}" min="0" step="0.01" value="${l.qty}" style="width:80px;text-align:right"></td>
@@ -1106,10 +1257,14 @@ function openStockCheck() {
     const q = $("#scSearch", card).value.trim().toLowerCase();
     const onlyStock = $("#scOnlyStock", card).checked;
     const list = db.products.filter((p) =>
+      (!scCat || p.categoryId === scCat) &&
       (!onlyStock || (p.stock || 0) > 0) &&
       (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) ||
         (p.lots || []).some((l) => (l.code || "").toLowerCase().includes(q))));
     $("#scTable", card).innerHTML = list.map(lotRows).join("") || `<tr><td colspan="6" class="muted" style="text-align:center;padding:20px">Không có mặt hàng nào khớp.</td></tr>`;
+    // Đồng bộ ô "Chọn tất cả": chỉ tích khi mọi dòng đang hiện đều đã tích.
+    const boxes = $$(".sc-check", card);
+    $("#scCheckAll", card).checked = boxes.length > 0 && boxes.every((cb) => cb.checked);
     updateSummary();
   }
   function updateSummary() {
@@ -1135,19 +1290,33 @@ function openStockCheck() {
   drawRows();
   $("#scSearch", card).addEventListener("input", drawRows);
   $("#scOnlyStock", card).addEventListener("change", drawRows);
+  $("#scCategoryFilter", card).addEventListener("change", (e) => { scCat = e.target.value; drawRows(); });
   $("#scCheckAll", card).addEventListener("change", (e) => {
-    $$(".sc-check", card).forEach((cb) => (cb.checked = e.target.checked));
+    $$(".sc-check", card).forEach((cb) => {
+      cb.checked = e.target.checked;
+      const key = cb.dataset.id + "|" + (cb.dataset.lot || "");
+      e.target.checked ? scSel.add(key) : scSel.delete(key);
+    });
     updateSummary();
   });
   $("#scTable", card).addEventListener("input", (e) => { if (e.target.classList.contains("sc-counted")) updateSummary(); });
-  $("#scTable", card).addEventListener("change", (e) => { if (e.target.classList.contains("sc-check")) updateSummary(); });
+  $("#scTable", card).addEventListener("change", (e) => {
+    if (!e.target.classList.contains("sc-check")) return;
+    const key = e.target.dataset.id + "|" + (e.target.dataset.lot || "");
+    e.target.checked ? scSel.add(key) : scSel.delete(key);
+    const boxes = $$(".sc-check", card);
+    $("#scCheckAll", card).checked = boxes.length > 0 && boxes.every((cb) => cb.checked);
+    updateSummary();
+  });
   $("#scTable", card).addEventListener("click", (e) => {
     const z = e.target.closest(".sc-zero");
     if (!z) return;
     const row = z.closest("tr");
     const input = row.querySelector(".sc-counted");
     input.value = 0;
-    row.querySelector(".sc-check").checked = true;
+    const cb = row.querySelector(".sc-check");
+    cb.checked = true;
+    scSel.add(cb.dataset.id + "|" + (cb.dataset.lot || ""));
     updateSummary();
   });
   $("#scCancel", card).onclick = () => closeModal();

@@ -38,6 +38,12 @@ h3 { font-size: 16px; margin: 0; }
 .btn-outline { background: #fff; border: 1px solid var(--line); }
 .btn-danger { background: var(--red); color: #fff; }
 .btn-pos { background: var(--blue); color: #fff; }
+/* Nút Bán hàng nổi bật: khung vuông bo tròn, màu cam. */
+#posBtn { background: linear-gradient(135deg, #ff8a00, #f97316); border-radius: 12px; padding: 10px 18px; font-size: 15px; box-shadow: 0 2px 8px rgba(249, 115, 22, .45); }
+#posBtn:hover { background: linear-gradient(135deg, #f97316, #ea580c); }
+.logout-icon { width: 22px; height: 22px; vertical-align: middle; }
+.logout-icon-dark { filter: invert(1); }
+.topbar #logoutBtn { display: inline-flex; align-items: center; justify-content: center; }
 .btn-ghost { background: transparent; color: var(--muted); }
 .btn-block { width: 100%; padding: 12px; }
 .btn-sm { padding: 6px 10px; font-size: 13px; }
@@ -213,6 +219,10 @@ select.mini-input { width: auto; }
 .bn-tab span { font-size: 11px; font-weight: 600; }
 .bn-tab.active { color: var(--blue); }
 .bn-pos span { color: var(--blue); }
+/* Nút Bán hàng ở thanh dưới điện thoại: khung vuông bo tròn màu cam, nhô lên. */
+.bottomnav .bn-pos { background: linear-gradient(135deg, #ff8a00, #f97316); color: #fff; border-radius: 14px; margin: -14px 6px 6px; padding: 10px 0 8px; box-shadow: 0 4px 12px rgba(249, 115, 22, .45); }
+.bottomnav .bn-pos span { color: #fff; }
+.bottomnav .bn-pos.active { color: #fff; }
 
 /* ---------- Hóa đơn in 80mm ---------- */
 #receiptPrint { display: none; }
