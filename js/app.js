@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v18";
+const APP_VERSION = "v19";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -56,6 +56,15 @@ function confirmBox(title, text, okLabel = "Xóa") {
 let currentView = "dashboard";
 async function boot() {
   const lv = $("#loginVersion"); if (lv) lv.textContent = "Phiên bản " + APP_VERSION;
+  // Đăng ký service worker theo đúng số phiên bản (địa chỉ có kèm số phiên bản
+  // nên trình duyệt luôn tải mới từ máy chủ, không dùng bản đệm). Mỗi lần mở
+  // app là đăng ký lại — có bản mới là service worker mới tự cài trong nền.
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js?v=" + APP_VERSION).catch(() => {});
+  }
+  const lub = $("#loginUpdateBtn");
+  if (lub) lub.onclick = (e) => checkAppUpdate(e.currentTarget);
+  checkServerVersion();
   await DB.init();
   await Auth.ensureAdmin();
   const remembered = Auth.rememberedUser();
@@ -141,18 +150,70 @@ function openMoreMenu() {
   $("#moreUpdate", card).onclick = (e) => checkAppUpdate(e.currentTarget);
 }
 
-// Kiểm tra bản mới: hỏi service worker xem có bản mới không, đợi bản mới
-// kích hoạt xong rồi tải lại trang. Không tự động — chỉ chạy khi Sếp bấm.
+// Hỏi thẳng máy chủ (không qua bộ nhớ đệm) xem bản mới nhất là bao nhiêu:
+// nếu có bản mới hơn thì nút cập nhật ở màn hình đăng nhập hiện rõ để bấm là lên.
+async function checkServerVersion() {
+  try {
+    const res = await fetch("./version.json", { cache: "no-store" });
+    const data = await res.json();
+    const server = String(data.version || "");
+    if (!server || server === APP_VERSION) return;
+    const btn = $("#loginUpdateBtn");
+    if (btn) {
+      btn.textContent = `Có bản mới ${server} — bấm để cập nhật`;
+      btn.classList.remove("btn-outline"); btn.classList.add("btn-primary");
+      btn.dataset.serverVersion = server;
+    }
+  } catch (e) { /* mất mạng: để nút kiểm tra thủ công */ }
+}
+
+// Cập nhật bản mới — chỉ chạy khi Sếp bấm, không tự động tải lại.
+// Hỏi thẳng máy chủ xem bản mới nhất là bao nhiêu, rồi gỡ service worker cũ
+// và đăng ký lại đúng bản đó (địa chỉ có kèm số phiên bản nên trình duyệt
+// luôn tải mới từ máy chủ, không dùng bản cũ trong bộ nhớ đệm).
 async function checkAppUpdate(btn) {
-  if (!("serviceWorker" in navigator)) { location.reload(); return; }
   btn.disabled = true; btn.textContent = "⏳ Đang kiểm tra bản mới…";
+  let server = btn.dataset.serverVersion || "";
+  try {
+    const res = await fetch("./version.json", { cache: "no-store" });
+    const data = await res.json();
+    server = String(data.version || "") || server;
+  } catch (e) { /* mất mạng: thử cách cũ bên dưới */ }
+  if (server && server !== APP_VERSION) {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+      if (window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      const reg = await navigator.serviceWorker.register("./sw.js?v=" + server);
+      const sw = reg.installing || reg.waiting || reg.active;
+      if (sw && sw.state !== "activated") {
+        await new Promise((resolve) => {
+          const t = setTimeout(resolve, 10000);
+          sw.addEventListener("statechange", () => { if (sw.state === "activated") { clearTimeout(t); resolve(); } });
+        });
+      }
+    } catch (e) { /* bỏ qua, vẫn tải lại trang */ }
+    const url = new URL(location.href);
+    url.searchParams.set("v", Date.now().toString(36));
+    location.replace(url.toString());
+    return;
+  }
+  if (server === APP_VERSION) {
+    btn.textContent = "✓ Đang là bản mới nhất";
+    setTimeout(() => { btn.disabled = false; btn.textContent = "⟳ Kiểm tra bản mới"; }, 2000);
+    return;
+  }
+  // Không hỏi được máy chủ: thử cập nhật service worker theo cách thường.
   try {
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) {
       await reg.update();
       const nw = reg.installing || reg.waiting;
       if (nw) await new Promise((resolve) => {
-        const t = setTimeout(resolve, 12000);
+        const t = setTimeout(resolve, 10000);
         nw.addEventListener("statechange", () => { if (nw.state === "activated") { clearTimeout(t); resolve(); } });
       });
     }

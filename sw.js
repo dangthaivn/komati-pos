@@ -1,7 +1,9 @@
-/* KOMATI service worker — cache-first cho app shell.
- * QUAN TRỌNG: tăng số phiên bản CACHE sau MỖI lần deploy, nếu không
- * trình duyệt sẽ tiếp tục hiện giao diện cũ (bài học từ app chấm công). */
-const CACHE = "komati-v18";
+/* KOMATI service worker — ưu tiên MẠNG cho app shell.
+ * Mỗi lần mở app là thử tải bản mới từ máy chủ trước, chỉ dùng bản đã lưu
+ * khi mất mạng — để bản mới lên máy trong vòng vài chục giây, không còn bị
+ * kẹt ở bản cũ như thời cache-first (bài học từ app chấm công + KOMATI v18).
+ * QUAN TRỌNG: tăng số phiên bản CACHE sau MỖI lần deploy. */
+const CACHE = "komati-v19";
 const ASSETS = [
   "./",
   "./index.html",
@@ -15,7 +17,9 @@ const ASSETS = [
   "./firebase-config.js",
 ];
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache:"reload" — lúc cài bản mới luôn tải thẳng từ máy chủ, không dùng
+  // bản cũ còn nằm trong bộ nhớ đệm của trình duyệt.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(
@@ -30,11 +34,13 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(fetch(e.request));
     return;
   }
+  // App shell: ưu tiên mạng (luôn lấy bản mới nhất khi có mạng), rớt mạng
+  // thì dùng bản đã lưu để vẫn dùng offline được.
   e.respondWith(
-    caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+    fetch(e.request).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy));
       return res;
-    }).catch(() => caches.match("./index.html")))
+    }).catch(() => caches.match(e.request).then((hit) => hit || caches.match("./index.html")))
   );
 });
