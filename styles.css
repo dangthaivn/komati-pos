@@ -179,10 +179,12 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .pay-boxes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
 .pay-box { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 700; color: #334155; }
 .pay-box.selected { border-color: var(--blue); background: #eff6ff; color: var(--blue); }
-.pos-summary .mini-input { width: 96px; }
-.pos-summary .inline-ctl { display: inline-flex; gap: 6px; }
-.pos-summary .inline-ctl .mini-input:first-child { width: 96px; }
-.pos-summary .inline-ctl select.mini-input { width: 56px; }
+.pos-summary .mini-input { width: 140px; text-align: right; }
+.pos-summary .inline-ctl { display: inline-flex; gap: 6px; align-items: center; }
+.pos-summary .inline-ctl .mini-input { width: 110px; }
+.seg-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+.seg-btn { border: none; background: #f1f5f9; padding: 8px 12px; font-size: 13.5px; font-weight: 700; color: #64748b; cursor: pointer; }
+.seg-btn.selected { background: #fff; color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
 .lots-box { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 10px; }
 .lots-box .tbl td, .lots-box .tbl th { padding: 6px 8px; }
 .sc-lot td { background: #f8fafc; font-size: 13px; }

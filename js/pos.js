@@ -2,6 +2,7 @@
 let posCart = []; // {productId, name, unit, qty, price, costPrice, discount, unitOptions}
 let posCustomer = null;
 let posPayment = "cash"; // cash | transfer | debt
+let posDiscountType = "amount"; // amount (VNĐ) | percent (%)
 
 function renderPosCustomer() {
   const picked = $("#posCustPicked"), input = $("#posCustSearch");
@@ -14,7 +15,7 @@ function renderPosCustomer() {
     input.placeholder = posCustomer.name + (posCustomer.phone ? " — " + posCustomer.phone : "");
   } else {
     picked.hidden = true;
-    input.placeholder = "🔍 Tìm khách hàng (tên, SĐT)…";
+    input.placeholder = "🔍 Tìm khách hàng (tên, SĐT, địa chỉ)…";
   }
 }
 function setPosPayment(p) {
@@ -58,7 +59,7 @@ function renderPosCart() {
   const box = $("#posLines");
   box.innerHTML = posCart.map((it, i) => `<div class="pos-line">
     <div class="ln-top"><span><b>${esc(it.name)}</b><br><span class="muted">${fmt(it.price)}đ / ${esc(it.unit)}</span></span>
-    <b>${fmt(it.price * it.qty - (it.discount || 0))}đ</b></div>
+    <b>${fmt(Math.max(0, it.price * it.qty - (it.discount || 0)))}đ</b></div>
     <div class="ln-ctl">
       <button class="qty-btn" data-i="${i}" data-d="-1" type="button">−</button><span>${it.qty}</span>
       <button class="qty-btn" data-i="${i}" data-d="1" type="button">+</button>
@@ -69,9 +70,9 @@ function renderPosCart() {
 }
 function posTotals() {
   let sub = 0;
-  for (const it of posCart) sub += it.price * it.qty - (it.discount || 0);
+  for (const it of posCart) sub += Math.max(0, it.price * it.qty - (it.discount || 0));
   const dv = moneyInput($("#posDiscountValue").value);
-  const disc = $("#posDiscountType").value === "percent" ? sub * Math.min(100, dv) / 100 : Math.min(sub, dv);
+  const disc = posDiscountType === "percent" ? sub * Math.min(100, dv) / 100 : Math.min(sub, dv);
   const ship = moneyInput($("#posShipping").value);
   return { sub, disc, ship, total: Math.max(0, sub - disc + ship) };
 }
@@ -84,8 +85,15 @@ function updatePosTotals() {
 }
 $("#posSearch").addEventListener("input", () => renderPOS());
 $("#posCategoryFilter").addEventListener("change", () => renderPOS());
-["posDiscountValue", "posDiscountType", "posShipping", "posPaid"].forEach((id) =>
+["posDiscountValue", "posShipping", "posPaid"].forEach((id) =>
   $("#" + id).addEventListener("input", updatePosTotals));
+$("#posDiscountTypeSeg").addEventListener("click", (e) => {
+  const b = e.target.closest(".seg-btn");
+  if (!b) return;
+  posDiscountType = b.dataset.t;
+  $$("#posDiscountTypeSeg .seg-btn").forEach((x) => x.classList.toggle("selected", x === b));
+  updatePosTotals();
+});
 $("#posPayBoxes").addEventListener("click", (e) => {
   const b = e.target.closest(".pay-box");
   if (b) setPosPayment(b.dataset.pay);
@@ -111,8 +119,11 @@ $("#posLines").addEventListener("click", (e) => {
     const it = posCart[+q.dataset.i];
     const p = DB.get().products.find((x) => x.id === it.productId);
     it.qty += +q.dataset.d;
-    if (it.qty > (p ? p.stock : 99)) { alert(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); it.qty = p.stock; }
-    if (it.qty <= 0) posCart.splice(+q.dataset.i, 1);
+    if (it.qty > (p ? p.stock : 99)) { alert(`Chỉ còn ${p ? p.stock : 99} ${p ? p.unit : ""} trong kho.`); it.qty = p ? p.stock : 99; }
+    // Số lượng nhỏ nhất là 0: bấm − ở 1 thì về 0 và giữ dòng hàng lại,
+    // bấm − tiếp vẫn là 0, không xóa hàng khỏi hóa đơn.
+    if (it.qty < 0) it.qty = 0;
+    if (it.qty === 0) it.discount = 0;
     renderPosCart(); return;
   }
   const rm = e.target.closest("[data-rm]");
@@ -134,8 +145,9 @@ $("#posCustSearch").addEventListener("input", (e) => {
   const box = $("#posCustResults");
   if (!q) { box.hidden = true; box.innerHTML = ""; return; }
   const db = DB.get();
-  const list = db.customers.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q) || (c.code || "").toLowerCase().includes(q)).slice(0, 6);
-  box.innerHTML = list.map((c) => `<button type="button" data-cid="${c.id}">${esc(c.name)}${c.phone ? " — " + esc(c.phone) : ""}${(c.debt || 0) > 0 ? ` <span style="color:var(--red)">(nợ ${fmt(c.debt)}đ)</span>` : ""}</button>`).join("")
+  // Tìm theo tên, SĐT, mã khách và cả địa chỉ.
+  const list = db.customers.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q) || (c.code || "").toLowerCase().includes(q) || (c.address || "").toLowerCase().includes(q)).slice(0, 6);
+  box.innerHTML = list.map((c) => `<button type="button" data-cid="${c.id}">${esc(c.name)}${c.phone ? " — " + esc(c.phone) : ""}${(c.debt || 0) > 0 ? ` <span style="color:var(--red)">(nợ ${fmt(c.debt)}đ)</span>` : ""}${c.address ? `<br><span class="muted" style="font-size:12.5px">${esc(c.address)}</span>` : ""}</button>`).join("")
     + `<button type="button" class="add-new" data-add="${esc(e.target.value.trim())}">＋ Thêm khách mới "${esc(e.target.value.trim())}"</button>`;
   box.hidden = false;
   $$("[data-cid]", box).forEach((b) => (b.onclick = () => { posCustomer = db.customers.find((x) => x.id === b.dataset.cid); box.hidden = true; e.target.value = ""; renderPOS(); }));
@@ -187,7 +199,10 @@ $("#posClear").addEventListener("click", () => {
 });
 
 async function saveOrder(printAfter) {
-  if (!posCart.length) { alert("Chưa có sản phẩm nào trong hóa đơn."); return; }
+  // Chỉ lưu các dòng có số lượng > 0 (dòng về 0 vẫn nằm trong hóa đơn để
+  // Sếp bấm + lại, nhưng không tính vào đơn đã lưu).
+  const sell = posCart.filter((it) => it.qty > 0);
+  if (!sell.length) { alert("Chưa có sản phẩm nào trong hóa đơn."); return; }
   const db = DB.get();
   const t = posTotals();
   const payment = posPayment;
@@ -198,7 +213,7 @@ async function saveOrder(printAfter) {
     return;
   }
   // Kiểm tra tồn kho lần cuối
-  for (const it of posCart) {
+  for (const it of sell) {
     const p = db.products.find((x) => x.id === it.productId);
     if (!p || it.qty > (p.stock || 0)) { alert(`"${it.name}" không đủ tồn kho.`); return; }
   }
@@ -206,12 +221,12 @@ async function saveOrder(printAfter) {
     id: DB.uid("hd"), code: newOrderCode(), date: todayStr(), time: new Date().toISOString(),
     customerId: posCustomer ? posCustomer.id : null,
     customerName: posCustomer ? posCustomer.name : "Khách lẻ",
-    items: posCart.map((it) => ({ productId: it.productId, name: it.name, unit: it.unit, qty: it.qty, price: it.price, discount: it.discount || 0 })),
+    items: sell.map((it) => ({ productId: it.productId, name: it.name, unit: it.unit, qty: it.qty, price: it.price, discount: it.discount || 0 })),
     discountValue: t.disc, shipping: t.ship, payment, paid,
     status: "completed", createdBy: Auth.me().username,
   };
   // Trừ kho + cập nhật công nợ / tổng mua (trừ theo lô hết hạn trước)
-  for (const it of posCart) {
+  for (const it of sell) {
     const p = db.products.find((x) => x.id === it.productId);
     DB.deductFromLots(p, it.qty);
     await DB.put("products", p);

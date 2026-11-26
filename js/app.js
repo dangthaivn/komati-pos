@@ -663,7 +663,7 @@ let customerSel = new Set();
 function renderCustomers() {
   const db = DB.get();
   const q = $("#customerSearch").value.trim().toLowerCase();
-  const list = db.customers.filter((c) => !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || (c.phone || "").includes(q));
+  const list = db.customers.filter((c) => !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || (c.phone || "").includes(q) || (c.address || "").toLowerCase().includes(q));
   const totalDebt = db.customers.reduce((s, c) => s + (c.debt || 0), 0);
   $("#totalDebt").textContent = fmt(totalDebt) + "đ";
   $("#totalDebtSub").textContent = "tổng số tiền khách còn nợ cửa hàng";

@@ -180,7 +180,7 @@
         <div class="stat-card"><span class="stat-label">Tổng công nợ</span><b id="totalDebt">0</b><span class="stat-sub" id="totalDebtSub"></span></div>
         <div class="stat-card"><span class="stat-label">Khách đang nợ</span><b id="debtCustomerCount">0</b><span class="stat-sub">khách hàng</span></div>
       </div>
-      <div class="toolbar"><input id="customerSearch" type="search" placeholder="Tìm theo mã, tên, số điện thoại…" autocomplete="off"></div>
+      <div class="toolbar"><input id="customerSearch" type="search" placeholder="Tìm theo mã, tên, SĐT, địa chỉ…" autocomplete="off"></div>
       <div id="bulkBarCustomers" class="bulk-bar" hidden>
         <span id="bulkCustomersText"></span>
         <button id="bulkDeleteCustomers" class="btn btn-danger" type="button">Xóa đã chọn</button>
@@ -277,7 +277,7 @@
         <div class="pos-cart card">
           <h3>Hóa đơn <span id="posOrderCode" class="muted"></span></h3>
           <div class="pos-cust">
-            <input id="posCustSearch" type="search" placeholder="🔍 Tìm khách hàng (tên, SĐT)…" autocomplete="off">
+            <input id="posCustSearch" type="search" placeholder="🔍 Tìm khách hàng (tên, SĐT, địa chỉ)…" autocomplete="off">
             <div id="posCustResults" class="pos-cust-results" hidden></div>
           </div>
           <div class="pos-cust-picked" id="posCustPicked" hidden>
@@ -287,7 +287,7 @@
           <div id="posLines" class="pos-lines"></div>
           <div class="pos-summary">
             <div class="row"><span>Tạm tính</span><b id="posSubtotal">0</b></div>
-            <div class="row"><span>Giảm giá hóa đơn</span><span class="inline-ctl"><input id="posDiscountValue" type="number" min="0" value="0" class="mini-input"><select id="posDiscountType" class="mini-input"><option value="amount">đ</option><option value="percent">%</option></select></span></div>
+            <div class="row"><span>Giảm giá hóa đơn</span><span class="inline-ctl"><span class="seg-toggle" id="posDiscountTypeSeg"><button type="button" class="seg-btn selected" data-t="amount">VNĐ</button><button type="button" class="seg-btn" data-t="percent">%</button></span><input id="posDiscountValue" type="number" min="0" value="0" class="mini-input"></span></div>
             <div class="row"><span>Thu khác (ship)</span><input id="posShipping" type="number" min="0" value="0" class="mini-input"></div>
             <div class="row total"><span>Tổng tiền</span><b id="posTotal">0</b></div>
           </div>
