@@ -175,7 +175,7 @@ function renderDashboard() {
   $("#statReturnsSub").textContent = ret.length + " đơn hủy / trả";
   const staff = isStaffUser();
   $("#statProfit").textContent = staff ? "*****" : fmt(profit) + "đ";
-  $("#statProfitSub").textContent = staff ? "Chỉ quản trị viên mới xem được" : "Doanh thu − giá vốn";
+  $("#statProfitSub").textContent = staff ? "" : "Doanh thu − giá vốn";
   $("#statOrders").textContent = orders.length;
   $("#statOrdersSub").textContent = done.length + " hoàn thành · " + ret.length + " hủy/trả";
 
