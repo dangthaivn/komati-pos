@@ -7,6 +7,8 @@ const todayStr = () => DB.todayStr();
 function dstr(d) { const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
 function dLabel(iso) { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
 function moneyInput(v) { return DB.parseNum(v); }
+// Tài khoản nhân viên (không phải Quản trị): ẩn số tiền lợi nhuận, ẩn nút hủy/trả hàng.
+function isStaffUser() { const me = Auth.me(); return !!me && me.role !== "Quản trị"; }
 
 /* ---------- Chống trùng lặp ---------- */
 // Chuẩn hóa SĐT để so sánh: chỉ giữ chữ số, +84… → 0…
@@ -171,8 +173,9 @@ function renderDashboard() {
   $("#statRevenueSub").textContent = done.length + " hóa đơn · " + (kind === "today" ? "hôm nay" : `${dLabel(from)} → ${dLabel(to)}`);
   $("#statReturns").textContent = fmt(returns) + "đ";
   $("#statReturnsSub").textContent = ret.length + " đơn hủy / trả";
-  $("#statProfit").textContent = fmt(profit) + "đ";
-  $("#statProfitSub").textContent = "Doanh thu − giá vốn";
+  const staff = isStaffUser();
+  $("#statProfit").textContent = staff ? "*****" : fmt(profit) + "đ";
+  $("#statProfitSub").textContent = staff ? "Chỉ quản trị viên mới xem được" : "Doanh thu − giá vốn";
   $("#statOrders").textContent = orders.length;
   $("#statOrdersSub").textContent = done.length + " hoàn thành · " + ret.length + " hủy/trả";
 
@@ -757,12 +760,14 @@ function renderOrders() {
   const custom = $("#orderPeriodDate").value;
   const { from, to } = periodRange(kind, custom);
   const list = db.orders.filter((o) => inRange(o.date, from, to)).sort((a, b) => b.time.localeCompare(a.time));
+  const staff = isStaffUser();
+  $("#checkAllOrders").style.display = staff ? "none" : "";
   $("#orderTable").innerHTML = list.map((o) => {
     const s = orderStats(o);
     const badge = o.status === "completed" ? `<span class="badge badge-green">Hoàn thành</span>`
       : o.status === "returned" ? `<span class="badge badge-amber">Đã trả hàng</span>` : `<span class="badge badge-red">Đã hủy</span>`;
     return `<tr>
-      <td class="cb"><input type="checkbox" class="row-check" data-id="${o.id}" ${orderSel.has(o.id) ? "checked" : ""}></td>
+      <td class="cb">${staff ? "" : `<input type="checkbox" class="row-check" data-id="${o.id}" ${orderSel.has(o.id) ? "checked" : ""}>`}</td>
       <td><b>${esc(o.code)}</b></td>
       <td>${dLabel(o.date)} ${new Date(o.time).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}</td>
       <td>${esc(o.customerName || "Khách lẻ")}</td>
@@ -770,7 +775,7 @@ function renderOrders() {
       <td>${o.payment === "cash" ? "Tiền mặt" : o.payment === "transfer" ? "Chuyển khoản" : "Ghi nợ"}</td>
       <td>${badge}</td>
       <td style="white-space:nowrap"><button class="link-btn" data-act="view" data-id="${o.id}" type="button">Xem</button>
-      ${o.status === "completed" ? `<button class="link-btn" data-act="return" data-id="${o.id}" type="button" style="color:var(--amber)">Hủy/Trả hàng</button>` : ""}</td></tr>`;
+      ${o.status === "completed" && !staff ? `<button class="link-btn" data-act="return" data-id="${o.id}" type="button" style="color:var(--amber)">Hủy/Trả hàng</button>` : ""}</td></tr>`;
   }).join("") || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Chưa có hóa đơn nào trong kỳ.</td></tr>`;
   updateBulkBar("orders", orderSel, "hóa đơn");
 }
@@ -813,6 +818,7 @@ $("#bulkDeleteOrders").addEventListener("click", async () => {
 function openOrderDetail(o) {
   const db = DB.get();
   const s = orderStats(o);
+  const staff = isStaffUser();
   const card = openModal(`<h3>Hóa đơn ${esc(o.code)}</h3>
     <p class="muted">${dLabel(o.date)} · ${esc(o.customerName || "Khách lẻ")} · ${o.payment === "cash" ? "Tiền mặt" : o.payment === "transfer" ? "Chuyển khoản" : "Ghi nợ"} · ${o.status === "completed" ? "Hoàn thành" : o.status === "returned" ? "Đã trả hàng" : "Đã hủy"}</p>
     <table class="tbl" style="min-width:0"><thead><tr><th>Sản phẩm</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead>
@@ -825,7 +831,7 @@ function openOrderDetail(o) {
     <div class="modal-actions">
       <button class="btn btn-outline" id="odClose" type="button">Đóng</button>
       <button class="btn btn-outline" id="odPrint" type="button">🖨️ In lại</button>
-      ${o.status === "completed" ? `<button class="btn btn-danger" id="odReturn" type="button">Hủy / Trả hàng</button>` : ""}
+      ${o.status === "completed" && !staff ? `<button class="btn btn-danger" id="odReturn" type="button">Hủy / Trả hàng</button>` : ""}
     </div>`, true);
   $("#odClose", card).onclick = () => closeModal();
   $("#odPrint", card).onclick = () => { printOrder(o); };
@@ -1031,18 +1037,32 @@ $("#employeeTable").addEventListener("click", async (e) => {
 });
 function openEmployeeForm(emp) {
   const perms = emp?.permissions || [];
+  // Ô mật khẩu có icon con mắt giống màn hình đăng nhập.
+  const pwField = (required) => `<label>Mật khẩu
+    <span class="password-wrap">
+      <input name="password" type="password" ${required ? "required" : ""} minlength="6" autocomplete="new-password" ${emp ? 'placeholder="Để trống nếu không đổi"' : ""}>
+      <button class="eye-btn" type="button" data-eye title="Hiện / ẩn mật khẩu" aria-label="Hiện mật khẩu">${EYE_OPEN}</button>
+    </span>
+  </label>`;
   const card = openModal(`<h3>${emp ? "Sửa nhân viên" : "Thêm nhân viên mới"}</h3>
     <form id="employeeForm">
       <div class="form-row">
         <label>Tên nhân viên<input name="name" type="text" required value="${esc(emp?.name || "")}"></label>
         <label>Tên đăng nhập<input name="username" type="text" required value="${esc(emp?.username || "")}" ${emp ? "disabled" : ""} autocomplete="off"></label>
       </div>
-      ${emp ? "" : `<label>Mật khẩu<input name="password" type="password" required minlength="6" autocomplete="new-password"></label>`}
+      ${emp ? `<div class="form-row">
+        <label>Vai trò
+          <select name="role" id="empRole">
+            ${Object.keys(Auth.ROLE_PRESETS).map((r) => `<option ${emp?.role === r ? "selected" : ""}>${r}</option>`).join("")}
+          </select>
+        </label>
+        ${pwField(false)}
+      </div>` : `${pwField(true)}
       <label>Vai trò
         <select name="role" id="empRole">
           ${Object.keys(Auth.ROLE_PRESETS).map((r) => `<option ${emp?.role === r ? "selected" : ""}>${r}</option>`).join("")}
         </select>
-      </label>
+      </label>`}
       <p style="font-weight:600;margin:14px 0 4px">Quyền cho nhân viên</p>
       <div class="perm-grid">
         ${Auth.PERMISSIONS.map((p) => `<label><input type="checkbox" name="perm" value="${p.key}" ${perms.includes(p.key) ? "checked" : ""}> ${esc(p.label)}</label>`).join("")}
@@ -1050,6 +1070,15 @@ function openEmployeeForm(emp) {
       <div class="modal-actions"><button type="button" class="btn btn-outline" id="emCancel">Hủy</button>
       <button type="submit" class="btn btn-primary">Lưu nhân viên</button></div>
     </form>`, true);
+  // Nút con mắt trong cửa sổ nhân viên (giống màn hình đăng nhập).
+  $$("[data-eye]", card).forEach((btn) => (btn.onclick = () => {
+    const input = btn.parentElement.querySelector("input");
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    btn.innerHTML = show ? EYE_OFF : EYE_OPEN;
+    btn.setAttribute("aria-label", show ? "Ẩn mật khẩu" : "Hiện mật khẩu");
+    input.focus();
+  }));
   $("#empRole", card).onchange = (e) => {
     const preset = Auth.ROLE_PRESETS[e.target.value] || [];
     $$('input[name="perm"]', card).forEach((cb) => (cb.checked = preset.includes(cb.value)));
@@ -1064,6 +1093,13 @@ function openEmployeeForm(emp) {
       emp.role = fd.get("role");
       emp.permissions = permissions;
       await DB.put("employees", emp);
+      // Sửa nhân viên: nếu có nhập mật khẩu mới thì đổi luôn (để trống = không đổi).
+      const pw = (fd.get("password") || "").trim();
+      if (pw) {
+        const res = await Auth.setPassword(emp, pw);
+        if (!res.ok) alert(res.message || "Không đổi được mật khẩu. Thử lại sau.");
+        else alert(res.created ? "Đã tạo tài khoản đăng nhập cho nhân viên này. Nhân viên đăng nhập được bằng mật khẩu mới." : "Đã đổi mật khẩu.");
+      }
     } else {
       const username = fd.get("username").trim();
       if (DB.get().employees.find((x) => x.username === username)) { alert("Tên đăng nhập này đã có người dùng."); return; }
@@ -1142,33 +1178,69 @@ $("#cashTable").addEventListener("click", async (e) => {
 });
 function openCashVoucher(type) {
   const db = DB.get();
+  let cvCustomerId = null;
   const card = openModal(`<h3>${type === "in" ? "Phiếu thu" : "Phiếu chi"}</h3>
     <form id="cashForm">
       <label>Số tiền<input name="amount" type="number" min="1" required></label>
-      <label>Loại thu chi
-        <select name="category">
+      <label>${type === "in" ? "Loại thu" : "Loại chi"}
+        <select name="category" id="cvCategory">
           ${type === "in"
-    ? `<option>Thu khác</option><option>Thu tiền khách trả</option>`
-    : `<option>Chi khác</option><option>Mua hàng</option><option>Chi lương</option><option>Chi mặt bằng</option>`}
+    ? `<option>Khách trả nợ</option><option>Thu khác</option>`
+    : `<option>Mua vật dụng</option><option>Giao ca</option><option>Chi khác</option>`}
         </select>
       </label>
+      ${type === "in" ? `<div id="cvCustRow">
+        <label>Khách hàng (nếu là thu nợ)</label>
+        <div class="pos-cust">
+          <input id="cvCustSearch" type="text" placeholder="🔍 Tìm khách hàng (tên, SĐT, địa chỉ)…" autocomplete="off">
+          <div id="cvCustResults" class="pos-cust-results" hidden></div>
+        </div>
+        <div id="cvCustPicked"></div>
+      </div>` : ""}
       <label>Người nộp / nhận<input name="person" type="text"></label>
       <label>Ngày<input name="date" type="date" value="${todayStr()}"></label>
-      <label>Khách hàng (nếu là thu nợ)<select name="customerId"><option value="">— Không chọn —</option>
-        ${db.customers.map((c) => `<option value="${c.id}">${esc(c.name)} (nợ ${fmt(c.debt || 0)}đ)</option>`).join("")}</select></label>
       <label>Ghi chú<input name="note" type="text"></label>
       <div class="modal-actions"><button type="button" class="btn btn-outline" id="cvCancel">Hủy</button>
       <button type="submit" class="btn btn-primary">Tạo phiếu</button></div>
     </form>`);
+  // Phiếu thu: tìm khách hàng theo tên / SĐT / mã / địa chỉ (như ô tìm khách ở POS),
+  // chỉ hiện khi loại thu là "Khách trả nợ".
+  if (type === "in") {
+    const search = $("#cvCustSearch", card), box = $("#cvCustResults", card);
+    const renderPicked = () => {
+      const picked = $("#cvCustPicked", card);
+      const c = cvCustomerId ? DB.get().customers.find((x) => x.id === cvCustomerId) : null;
+      picked.innerHTML = c ? `<div class="pos-cust-picked"><span>${esc(c.name)}${c.phone ? " — " + esc(c.phone) : ""}${(c.debt || 0) > 0 ? `<span class="debt">(nợ ${fmt(c.debt)}đ)</span>` : ""}</span><button type="button" id="cvCustClear" class="link-btn">✕</button></div>` : "";
+      const clr = $("#cvCustClear", card);
+      if (clr) clr.onclick = () => { cvCustomerId = null; renderPicked(); };
+    };
+    const syncRow = () => {
+      const show = $("#cvCategory", card).value === "Khách trả nợ";
+      $("#cvCustRow", card).hidden = !show;
+      if (!show) { cvCustomerId = null; renderPicked(); }
+    };
+    $("#cvCategory", card).addEventListener("change", syncRow);
+    search.addEventListener("input", () => {
+      const q = search.value.trim().toLowerCase();
+      if (!q) { box.hidden = true; box.innerHTML = ""; return; }
+      const list = DB.get().customers.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q) || (c.code || "").toLowerCase().includes(q) || (c.address || "").toLowerCase().includes(q)).slice(0, 6);
+      box.innerHTML = list.map((c) => `<button type="button" data-cid="${c.id}">${esc(c.name)}${c.phone ? " — " + esc(c.phone) : ""}${(c.debt || 0) > 0 ? ` <span style="color:var(--red)">(nợ ${fmt(c.debt)}đ)</span>` : ""}${c.address ? `<br><span class="muted" style="font-size:12.5px">${esc(c.address)}</span>` : ""}</button>`).join("")
+        || `<button type="button" disabled>Không tìm thấy khách hàng</button>`;
+      box.hidden = false;
+      $$("[data-cid]", box).forEach((b) => (b.onclick = () => { cvCustomerId = b.dataset.cid; box.hidden = true; search.value = ""; renderPicked(); }));
+    });
+    card.addEventListener("click", (e) => { if (!e.target.closest(".pos-cust")) box.hidden = true; });
+    syncRow();
+  }
   $("#cvCancel", card).onclick = () => closeModal();
   $("#cashForm", card).onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const amount = moneyInput(fd.get("amount"));
-    const customerId = fd.get("customerId") || null;
+    const customerId = type === "in" ? cvCustomerId : null;
     const category = fd.get("category");
     await DB.put("cashEntries", { id: DB.uid(type === "in" ? "pt" : "pc"), code: (type === "in" ? "PT" : "PC") + Date.now().toString().slice(-6), date: fd.get("date") || todayStr(), time: new Date().toISOString(), type, category, amount, person: fd.get("person").trim(), note: fd.get("note").trim(), customerId });
-    if (type === "in" && customerId && category === "Thu tiền khách trả") {
+    if (type === "in" && customerId && category === "Khách trả nợ") {
       const c = DB.get().customers.find((x) => x.id === customerId);
       if (c) { c.debt = Math.max(0, (c.debt || 0) - amount); await DB.put("customers", c); }
     }
