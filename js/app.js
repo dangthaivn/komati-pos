@@ -1,4 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
+// Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
+// Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
+const APP_VERSION = "v16";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -52,6 +55,7 @@ function confirmBox(title, text, okLabel = "Xóa") {
 /* ---------- Khởi động ---------- */
 let currentView = "dashboard";
 async function boot() {
+  const lv = $("#loginVersion"); if (lv) lv.textContent = "Phiên bản " + APP_VERSION;
   await DB.init();
   await Auth.ensureAdmin();
   const remembered = Auth.rememberedUser();
@@ -129,9 +133,31 @@ function openMoreMenu() {
   const items = [["employees", "👥 Nhân viên"], ["cashbook", "💰 Sổ quỹ"], ["print", "🖨️ In ấn"]];
   const card = openModal(`<h3>Mục khác</h3><div style="display:grid;gap:8px;margin-top:12px">
     ${items.filter(([v]) => Auth.can(v)).map(([v, l]) => `<button class="btn btn-outline" data-go="${v}" type="button" style="text-align:left">${l}</button>`).join("")}
-    <button class="btn btn-outline" id="moreLogout" type="button" style="text-align:left"><img src="data:image/png;base64,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" class="logout-icon logout-icon-dark" alt=""> Đăng xuất</button></div>`);
+    <button class="btn btn-outline" id="moreLogout" type="button" style="text-align:left"><img src="data:image/png;base64,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" class="logout-icon logout-icon-dark" alt=""> Đăng xuất</button>
+    <button class="btn btn-outline" id="moreUpdate" type="button" style="text-align:left">⟳ Kiểm tra bản mới</button>
+    <p class="muted" style="text-align:center;margin:4px 0 0">Phiên bản ${APP_VERSION}</p></div>`);
   $$("[data-go]", card).forEach((b) => (b.onclick = () => { closeModal(); showView(b.dataset.go); }));
   $("#moreLogout", card).onclick = () => { Auth.logout(); location.reload(); };
+  $("#moreUpdate", card).onclick = (e) => checkAppUpdate(e.currentTarget);
+}
+
+// Kiểm tra bản mới: hỏi service worker xem có bản mới không, đợi bản mới
+// kích hoạt xong rồi tải lại trang. Không tự động — chỉ chạy khi Sếp bấm.
+async function checkAppUpdate(btn) {
+  if (!("serviceWorker" in navigator)) { location.reload(); return; }
+  btn.disabled = true; btn.textContent = "⏳ Đang kiểm tra bản mới…";
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) {
+      await reg.update();
+      const nw = reg.installing || reg.waiting;
+      if (nw) await new Promise((resolve) => {
+        const t = setTimeout(resolve, 12000);
+        nw.addEventListener("statechange", () => { if (nw.state === "activated") { clearTimeout(t); resolve(); } });
+      });
+    }
+  } catch (e) { /* bỏ qua, vẫn tải lại trang */ }
+  location.reload();
 }
 
 /* ---------- Khoảng thời gian ---------- */
