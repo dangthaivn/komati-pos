@@ -45,7 +45,9 @@ Làm theo 8 bước trong `firebase-config.js`. Tóm tắt:
   Top 10 mặt hàng, Top 10 khách hàng; cột Hoạt động gần đây.
 - **Hàng hóa:** thêm/sửa/xóa, nhóm hàng (tạo mới bằng dấu +), ảnh, giá vốn,
   giá bán, đơn vị phụ (thùng/hộp…), hạn sử dụng — báo khi còn ≤ 30 ngày,
-  báo mỗi ngày đến khi hết hàng; nhập kho; import Excel + file mẫu Excel.
+  báo mỗi ngày đến khi hết hàng; nhập kho; **kiểm kho** (chọn hàng còn tồn,
+  nhập số đếm thực tế, nút Hết hàng đưa về 0, lưu bản kiểm kho + lịch sử);
+  import Excel + file mẫu Excel.
 - **Đơn hàng:** lọc theo ngày/tuần/tháng; xem chi tiết; Hủy/Trả hàng
   (trả lại kho + hoàn tiền/nợ); chọn nhiều để xóa.
 - **Khách hàng:** import Excel, công nợ từng khách + tổng công nợ,
