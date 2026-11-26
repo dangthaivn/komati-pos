@@ -54,7 +54,9 @@ const Auth = (() => {
 
   async function loginDemo(username, password) {
     const db = DB.get();
-    const emp = db.employees.find((e) => e.username === username);
+    const base = username.split("@")[0];
+    const emp = db.employees.find((e) => e.username === username)
+      || db.employees.find((e) => e.username === base);
     if (!emp) return { ok: false, error: "Tên đăng nhập hoặc mật khẩu chưa đúng." };
     const hash = await hashPassword(password, emp.salt);
     if (hash !== emp.passwordHash) return { ok: false, error: "Tên đăng nhập hoặc mật khẩu chưa đúng." };
@@ -62,14 +64,17 @@ const Auth = (() => {
   }
 
   async function loginFirebase(username, password) {
-    // Firebase Auth cần email: map tên đăng nhập -> username@komati.local
-    const email = username.trim().toLowerCase() + "@komati.local";
+    // Firebase Auth cần email. Sếp có thể gõ "admin" hoặc cả email "admin@komati.local":
+    // nếu đã có @ thì dùng nguyên, chưa có thì tự thêm @komati.local.
+    const email = username.includes("@") ? username.toLowerCase() : username.toLowerCase() + "@komati.local";
     const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
     const db = DB.get();
-    let emp = db.employees.find((e) => e.username === username);
+    const base = username.split("@")[0];
+    let emp = db.employees.find((e) => e.username === username)
+      || db.employees.find((e) => e.username === base);
     if (!emp) {
-      const isAdmin = username === "admin";
-      emp = { id: cred.user.uid, username, name: isAdmin ? "Quản trị viên" : username, role: isAdmin ? "Quản trị" : "Bán hàng", permissions: (isAdmin ? ROLE_PRESETS["Quản trị"] : ROLE_PRESETS["Bán hàng"]).slice(), phone: "", note: "" };
+      const isAdmin = base === "admin";
+      emp = { id: cred.user.uid, username: base, name: isAdmin ? "Quản trị viên" : base, role: isAdmin ? "Quản trị" : "Bán hàng", permissions: (isAdmin ? ROLE_PRESETS["Quản trị"] : ROLE_PRESETS["Bán hàng"]).slice(), phone: "", note: "" };
       await DB.put("employees", emp);
     }
     return { ok: true, user: emp };
@@ -85,7 +90,17 @@ const Auth = (() => {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ username: currentUser.username, ts: Date.now() }));
       return { ok: true, user: currentUser };
     } catch (e) {
-      return { ok: false, error: "Không đăng nhập được. Kiểm tra lại thông tin hoặc mạng." };
+      const code = e && e.code ? String(e.code) : "";
+      const msg = {
+        "auth/invalid-email": "Tên đăng nhập chưa đúng định dạng.",
+        "auth/user-not-found": "Tên đăng nhập hoặc mật khẩu chưa đúng.",
+        "auth/wrong-password": "Tên đăng nhập hoặc mật khẩu chưa đúng.",
+        "auth/invalid-credential": "Tên đăng nhập hoặc mật khẩu chưa đúng.",
+        "auth/user-disabled": "Tài khoản này đã bị khóa.",
+        "auth/too-many-requests": "Đăng nhập sai quá nhiều lần. Thử lại sau ít phút.",
+        "auth/network-request-failed": "Không có mạng. Kiểm tra kết nối rồi thử lại.",
+      }[code];
+      return { ok: false, error: msg || ("Không đăng nhập được" + (code ? " (" + code + ")" : "") + ". Kiểm tra lại thông tin hoặc mạng.") };
     }
   }
   function logout() {

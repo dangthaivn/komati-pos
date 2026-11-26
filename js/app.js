@@ -50,6 +50,15 @@ $("#loginForm").addEventListener("submit", async (e) => {
   err.hidden = true;
   enterApp();
 });
+// Nút con mắt: hiện / ẩn mật khẩu đã gõ.
+$("#togglePass").addEventListener("click", () => {
+  const input = $("#loginPass");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  $("#togglePass").textContent = show ? "🙈" : "👁️";
+  $("#togglePass").setAttribute("aria-label", show ? "Ẩn mật khẩu" : "Hiện mật khẩu");
+  input.focus();
+});
 function enterApp() {
   $("#loginScreen").hidden = true;
   $("#app").hidden = false;

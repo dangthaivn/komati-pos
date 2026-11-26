@@ -32,7 +32,10 @@
         <input id="loginUser" type="text" autocomplete="username" autocapitalize="off" spellcheck="false">
       </label>
       <label>Mật khẩu
-        <input id="loginPass" type="password" autocomplete="current-password">
+        <span class="password-wrap">
+          <input id="loginPass" type="password" autocomplete="current-password">
+          <button id="togglePass" class="eye-btn" type="button" title="Hiện / ẩn mật khẩu" aria-label="Hiện mật khẩu">👁️</button>
+        </span>
       </label>
       <label class="remember"><input id="loginRemember" type="checkbox"> Ghi nhớ đăng nhập</label>
       <p id="loginError" class="error" hidden></p>
