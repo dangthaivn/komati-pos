@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v19";
+const APP_VERSION = "v20";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -281,7 +281,7 @@ function renderDashboard() {
     const key = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     const v = byDay[key] || 0;
     html += `<div class="bar-col"><span class="bar-val">${v ? (v >= 1e6 ? (v / 1e6).toFixed(1) + "tr" : Math.round(v / 1000) + "k") : ""}</span>
-      <div class="bar" style="height:${Math.max(2, (v / max) * 130)}px"></div><span class="bar-lab">${d}</span></div>`;
+      <div class="bar" style="height:${Math.max(1.5, (v / max) * 70)}%"></div><span class="bar-lab">${d % 5 === 0 ? d : ""}</span></div>`;
   }
   $("#revChart").innerHTML = html;
 
