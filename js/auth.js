@@ -68,6 +68,14 @@ const Auth = (() => {
     // nếu đã có @ thì dùng nguyên, chưa có thì tự thêm @komati.local.
     const email = username.includes("@") ? username.toLowerCase() : username.toLowerCase() + "@komati.local";
     const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+    // Đăng nhập xong mới được đọc Firestore: tải dữ liệu thật về trước khi
+    // tìm hồ sơ nhân viên (trước đây app đọc Firestore ngay lúc khởi động,
+    // khi chưa đăng nhập nên bị luật cấm và dữ liệu trống, gây lỗi đăng nhập).
+    try {
+      await DB.loadAfterLogin();
+    } catch (e) {
+      return { ok: false, error: "Đã đăng nhập nhưng không tải được dữ liệu cửa hàng. Kiểm tra mạng rồi thử lại." };
+    }
     const db = DB.get();
     const base = username.split("@")[0];
     let emp = db.employees.find((e) => e.username === username)

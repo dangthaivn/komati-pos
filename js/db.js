@@ -113,12 +113,55 @@ const DB = (() => {
   }
   async function deleteFromFirestore(coll, id) { await fs.collection(coll).doc(id).delete(); }
 
+  // Cấu trúc rỗng dùng trước khi đăng nhập: Firestore cấm mọi truy cập khi
+  // chưa xác thực, nên không thể đọc dữ liệu thật ở bước khởi động.
+  function emptyShell() {
+    return {
+      meta: { version: 1 },
+      settings: seed().settings,
+      categories: [], products: [], customers: [], employees: [],
+      orders: [], cashEntries: [], stockIns: [], stockChecks: [], activity: [],
+    };
+  }
+  // Đợi Firebase Auth xác định xong trạng thái đăng nhập (tài khoản đã lưu
+  // trên máy sẽ tự khôi phục; chưa đăng nhập thì trả về null sau tối đa 3 giây).
+  function currentAuthUser() {
+    return new Promise((resolve) => {
+      try {
+        if (typeof firebase === "undefined" || !firebase.auth) return resolve(null);
+        const auth = firebase.auth();
+        if (auth.currentUser) return resolve(auth.currentUser);
+        let done = false;
+        const finish = (u) => { if (!done) { done = true; clearTimeout(t); try { unsub(); } catch (e) {} resolve(u || null); } };
+        const t = setTimeout(() => finish(auth.currentUser), 3000);
+        const unsub = auth.onAuthStateChanged((u) => finish(u));
+      } catch (e) { resolve(null); }
+    });
+  }
+
   // ---- API chung (giao diện chỉ gọi các hàm này) ----
   async function init() {
     const ok = await initFirebase();
-    if (ok) { store = await loadFromFirestore(); }
-    else loadDemo();
+    if (ok) {
+      const user = await currentAuthUser();
+      if (user) {
+        try { store = await loadFromFirestore(); }
+        catch (e) { console.warn("Không tải được dữ liệu Firestore:", e); store = emptyShell(); }
+      } else {
+        // Chưa đăng nhập: không đọc Firestore (luật cấm), dùng dữ liệu trống
+        // tại chỗ để màn hình đăng nhập hoạt động; dữ liệu thật tải sau khi
+        // đăng nhập xong (xem loadAfterLogin).
+        store = emptyShell();
+      }
+    } else loadDemo();
     return { firebase: ok };
+  }
+  // Sau khi đăng nhập thành công mới được phép đọc/ghi Firestore: tải dữ liệu
+  // thật về (và ghi dữ liệu mẫu nếu kho còn trống).
+  async function loadAfterLogin() {
+    if (!fs) return store;
+    store = await loadFromFirestore();
+    return store;
   }
   function get() { return store; }
   function save() { if (fs) { /* Firestore: ghi theo từng collection khi thay đổi (xem put/remove) */ } else saveDemo(); }
@@ -141,5 +184,5 @@ const DB = (() => {
     if (!fs) saveDemo();
   }
 
-  return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs };
+  return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs, loadAfterLogin };
 })();
