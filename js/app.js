@@ -1037,7 +1037,7 @@ function openEmployeeForm(emp) {
         <label>Tên nhân viên<input name="name" type="text" required value="${esc(emp?.name || "")}"></label>
         <label>Tên đăng nhập<input name="username" type="text" required value="${esc(emp?.username || "")}" ${emp ? "disabled" : ""} autocomplete="off"></label>
       </div>
-      ${emp ? "" : `<label>Mật khẩu<input name="password" type="password" required minlength="4" autocomplete="new-password"></label>`}
+      ${emp ? "" : `<label>Mật khẩu<input name="password" type="password" required minlength="6" autocomplete="new-password"></label>`}
       <label>Vai trò
         <select name="role" id="empRole">
           ${Object.keys(Auth.ROLE_PRESETS).map((r) => `<option ${emp?.role === r ? "selected" : ""}>${r}</option>`).join("")}
@@ -1069,7 +1069,14 @@ function openEmployeeForm(emp) {
       if (DB.get().employees.find((x) => x.username === username)) { alert("Tên đăng nhập này đã có người dùng."); return; }
       const item = { id: DB.uid("emp"), username, name: fd.get("name").trim(), role: fd.get("role"), permissions, phone: "", note: "" };
       await DB.put("employees", item);
-      await Auth.setPassword(item, fd.get("password"));
+      // Chế độ Firebase: tạo luôn tài khoản đăng nhập (username@komati.local)
+      // để nhân viên đăng nhập được; chế độ demo thì lưu mật khẩu đã băm.
+      if (DB.isFirebase()) {
+        const acc = await Auth.createLoginAccount(username, fd.get("password"));
+        if (!acc.ok) alert(`Đã lưu hồ sơ nhân viên "${username}" nhưng chưa tạo được tài khoản đăng nhập (${acc.message || "lỗi không rõ"}). Nhân viên chưa đăng nhập được — mở "Đổi mật khẩu" của nhân viên này để tạo lại.`);
+      } else {
+        await Auth.setPassword(item, fd.get("password"));
+      }
     }
     closeModal(); renderEmployees();
   };
@@ -1078,8 +1085,8 @@ $("#addEmployeeBtn").addEventListener("click", () => openEmployeeForm(null));
 function openChangePassword(emp) {
   const card = openModal(`<h3>Đổi mật khẩu — ${esc(emp.name)}</h3>
     <form id="passForm">
-      <label>Mật khẩu mới<input name="p1" type="password" required minlength="4" autocomplete="new-password"></label>
-      <label>Nhập lại mật khẩu mới<input name="p2" type="password" required minlength="4" autocomplete="new-password"></label>
+      <label>Mật khẩu mới<input name="p1" type="password" required minlength="6" autocomplete="new-password"></label>
+      <label>Nhập lại mật khẩu mới<input name="p2" type="password" required minlength="6" autocomplete="new-password"></label>
       <div class="modal-actions"><button type="button" class="btn btn-outline" id="pwCancel">Hủy</button>
       <button type="submit" class="btn btn-primary">Đổi mật khẩu</button></div>
     </form>`);
@@ -1088,9 +1095,10 @@ function openChangePassword(emp) {
     e.preventDefault();
     const fd = new FormData(e.target);
     if (fd.get("p1") !== fd.get("p2")) { alert("Hai mật khẩu nhập chưa khớp."); return; }
-    await Auth.setPassword(emp, fd.get("p1"));
+    const res = await Auth.setPassword(emp, fd.get("p1"));
+    if (!res.ok) { alert(res.message || "Không đổi được mật khẩu. Thử lại sau."); return; }
     closeModal();
-    alert("Đã đổi mật khẩu.");
+    alert(res.created ? "Đã tạo tài khoản đăng nhập cho nhân viên này. Nhân viên đăng nhập được bằng mật khẩu mới." : "Đã đổi mật khẩu.");
   };
 }
 

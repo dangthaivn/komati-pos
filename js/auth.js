@@ -139,16 +139,74 @@ const Auth = (() => {
   function setRememberedUser(username, remember) {
     try { if (remember) localStorage.setItem(REMEMBER_KEY, username); else localStorage.removeItem(REMEMBER_KEY); } catch (e) { /* bỏ qua */ }
   }
+  // Thông báo lỗi Firebase Auth bằng tiếng Việt (dùng chung cho đăng nhập,
+  // tạo tài khoản và đổi mật khẩu).
+  function firebaseErr(code) {
+    return {
+      "auth/invalid-email": "Tên đăng nhập chưa đúng định dạng.",
+      "auth/user-not-found": "Tên đăng nhập hoặc mật khẩu chưa đúng.",
+      "auth/wrong-password": "Tên đăng nhập hoặc mật khẩu chưa đúng.",
+      "auth/invalid-credential": "Tên đăng nhập hoặc mật khẩu chưa đúng.",
+      "auth/user-disabled": "Tài khoản này đã bị khóa.",
+      "auth/too-many-requests": "Đăng nhập sai quá nhiều lần. Thử lại sau ít phút.",
+      "auth/network-request-failed": "Không có mạng. Kiểm tra kết nối rồi thử lại.",
+      "auth/email-already-in-use": "Tài khoản đăng nhập này đã tồn tại.",
+      "auth/weak-password": "Mật khẩu phải từ 6 ký tự trở lên.",
+      "auth/operation-not-allowed": "Chưa bật đăng nhập Email/Mật khẩu trong Firebase.",
+      "auth/requires-recent-login": "Phiên đăng nhập đã cũ. Đăng xuất rồi đăng nhập lại, sau đó đổi mật khẩu.",
+    }[code] || ("Không thực hiện được" + (code ? " (" + code + ")" : "") + ".");
+  }
+
+  // Tạo tài khoản đăng nhập Firebase Auth cho nhân viên (chế độ Firebase).
+  // Dùng app phụ để tạo tài khoản mà không đăng xuất tài khoản đang dùng.
+  // Trả {ok:true, created:true} khi tạo mới, {ok:true, created:false} khi
+  // tài khoản đã tồn tại từ trước.
+  async function createLoginAccount(username, password) {
+    if (!DB.isFirebase() || typeof firebase === "undefined") return { ok: true, created: false };
+    const email = (username || "").includes("@") ? username.toLowerCase() : username.toLowerCase() + "@komati.local";
+    let secondary = null;
+    try {
+      secondary = firebase.initializeApp(window.KOMATI_FIREBASE_CONFIG, "komati-secondary-" + Date.now());
+      await secondary.auth().createUserWithEmailAndPassword(email, password);
+      return { ok: true, created: true };
+    } catch (e) {
+      if (e && e.code === "auth/email-already-in-use") return { ok: true, created: false, existed: true };
+      return { ok: false, message: firebaseErr(e && e.code) };
+    } finally {
+      if (secondary) { try { await secondary.delete(); } catch (e) { /* bỏ qua */ } }
+    }
+  }
+
   async function setPassword(emp, newPassword) {
-    if (DB.isFirebase() && typeof firebase !== "undefined" && firebase.auth().currentUser) {
-      await firebase.auth().currentUser.updatePassword(newPassword);
-      return;
+    // Chế độ Firebase: mật khẩu đăng nhập nằm ở Firebase Auth, không nằm ở
+    // bản ghi nhân viên. Chỉ đổi được mật khẩu của chính tài khoản đang đăng
+    // nhập; Firebase không cho đổi mật khẩu của người khác từ trình duyệt.
+    // (Trước đây hàm này gọi updatePassword trên tài khoản đang đăng nhập
+    // bất kể emp là ai — tạo nhân viên mới sẽ vô tình đổi luôn mật khẩu
+    // của admin. Đã sửa: với người khác chỉ tạo tài khoản nếu chưa có.)
+    if (DB.isFirebase() && typeof firebase !== "undefined") {
+      const me = firebase.auth().currentUser;
+      const myName = me && me.email ? me.email.split("@")[0] : "";
+      const target = (emp.username || "").split("@")[0];
+      if (me && myName && target && myName === target) {
+        try {
+          await me.updatePassword(newPassword);
+          return { ok: true, changed: true };
+        } catch (e) {
+          return { ok: false, message: firebaseErr(e && e.code) };
+        }
+      }
+      const res = await createLoginAccount(emp.username, newPassword);
+      if (!res.ok) return res;
+      if (res.created) return { ok: true, created: true };
+      return { ok: false, message: "Tài khoản đăng nhập của nhân viên này đã tồn tại từ trước nên không đổi được mật khẩu từ đây. Nhân viên tự đăng nhập rồi đổi mật khẩu ở tab Nhân viên." };
     }
     const salt = makeSalt();
     emp.salt = salt;
     emp.passwordHash = await hashPassword(newPassword, salt);
     await DB.put("employees", emp);
+    return { ok: true, changed: true };
   }
 
-  return { PERMISSIONS, ROLE_PRESETS, ensureAdmin, login, logout, restoreSession, me, can, rememberedUser, setRememberedUser, setPassword };
+  return { PERMISSIONS, ROLE_PRESETS, ensureAdmin, login, logout, restoreSession, me, can, rememberedUser, setRememberedUser, setPassword, createLoginAccount };
 })();

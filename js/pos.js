@@ -72,11 +72,15 @@ function renderPosCart() {
     <div class="ln-top"><span><b>${esc(it.name)}</b><br><span class="muted">${fmt(it.price)}đ / ${esc(it.unit)}</span></span>
     <b>${fmt(Math.max(0, it.price * it.qty - (it.discount || 0)))}đ</b></div>
     <div class="ln-ctl">
-      <button class="qty-btn" data-i="${i}" data-d="-1" type="button">−</button>
-      <input class="qty-input" data-qty="${i}" type="number" min="0" step="0.001" value="${fmtQty(it.qty)}">
-      <button class="qty-btn" data-i="${i}" data-d="1" type="button">+</button>
-      <button class="btn btn-outline btn-sm" data-disc="${i}" type="button">Giảm giá${it.discount ? `: −${fmt(it.discount)}đ` : ""}</button>
-      <button class="btn btn-ghost btn-sm" data-rm="${i}" type="button" style="color:var(--red)">✕</button>
+      <span class="qty-group">
+        <button class="qty-btn" data-i="${i}" data-d="-1" type="button">−</button>
+        <input class="qty-input" data-qty="${i}" type="number" min="0" step="0.001" value="${fmtQty(it.qty)}">
+        <button class="qty-btn" data-i="${i}" data-d="1" type="button">+</button>
+      </span>
+      <span class="ln-actions">
+        <button class="btn btn-outline btn-sm" data-disc="${i}" type="button">Giảm giá${it.discount ? `: −${fmt(it.discount)}đ` : ""}</button>
+        <button class="btn btn-ghost btn-sm" data-rm="${i}" type="button" style="color:var(--red)">✕</button>
+      </span>
     </div></div>`).join("") || `<p class="muted">Chưa có sản phẩm nào. Chạm vào mặt hàng để thêm.</p>`;
   updatePosTotals();
 }
@@ -101,19 +105,21 @@ function updatePosTotals() {
   renderPaidSuggest(t.total);
 }
 // Gợi ý số tiền chẵn lớn hơn Tổng tiền một chút để nhân viên chọn nhanh.
+// Theo mệnh giá 50.000 / 100.000 / 200.000 / 500.000 (VD bill 221.000đ gợi
+// ý 250.000 / 300.000 / 400.000 / 500.000); số lẻ nhỏ nhân viên tự tính.
 function renderPaidSuggest(total) {
   const box = $("#posPaidSuggest");
   if (posPayment !== "cash" || total <= 0) { box.hidden = true; box.innerHTML = ""; return; }
-  const dens = [10000, 50000, 100000, 200000, 500000, 1000000, 5000000];
+  const dens = [50000, 100000, 200000, 500000, 1000000];
   const vals = [];
   for (const d of dens) {
     const v = Math.ceil(total / d) * d;
     if (v > total && !vals.includes(v)) vals.push(v);
     if (vals.length >= 4) break;
   }
-  if (!vals.length) vals.push(Math.ceil((total + 100000) / 10000) * 10000);
+  if (!vals.length) vals.push(Math.ceil((total + 100000) / 50000) * 50000);
   box.hidden = false;
-  box.innerHTML = `<span class="muted">Khách đưa:</span>` + vals.map((v) => `<button type="button" class="suggest-chip" data-amt="${v}">${fmt(v)}</button>`).join("");
+  box.innerHTML = vals.map((v) => `<button type="button" class="suggest-chip" data-amt="${v}">${fmt(v)}</button>`).join("");
 }
 $("#posPaidSuggest").addEventListener("click", (e) => {
   const b = e.target.closest(".suggest-chip");
@@ -193,9 +199,12 @@ function openItemDiscountModal(idx) {
   itemDiscType = "amount";
   const card = openModal(`<h3>Giảm giá — ${esc(it.name)}</h3>
     <p class="muted">Đơn giá ${fmt(it.price)}đ × ${fmtQty(it.qty)} ${esc(it.unit)} = <b>${fmt(lineTotal)}đ</b>. Giảm tối đa ${fmt(lineTotal)}đ.</p>
-    <div class="form-row" style="align-items:flex-end">
-      <label style="flex:1">Số tiền giảm / % giảm<input id="itemDiscValue" type="number" min="0" value="${it.discount || 0}"></label>
-      <span class="seg-toggle" id="itemDiscTypeSeg"><button type="button" class="seg-btn selected" data-t="amount">VNĐ</button><button type="button" class="seg-btn" data-t="percent">%</button></span>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <span>Số tiền giảm / % giảm</span>
+      <span class="inline-ctl">
+        <span class="seg-toggle" id="itemDiscTypeSeg"><button type="button" class="seg-btn selected" data-t="amount">VNĐ</button><button type="button" class="seg-btn" data-t="percent">%</button></span>
+        <input id="itemDiscValue" type="number" min="0" value="${it.discount || 0}" class="mini-input">
+      </span>
     </div>
     <div class="modal-actions">
       <button type="button" class="btn btn-outline" id="itemDiscCancel">Hủy</button>

@@ -186,8 +186,8 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .pay-box { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; font-size: 13.5px; font-weight: 700; color: #334155; }
 .pay-box.selected { border-color: var(--blue); background: #eff6ff; color: var(--blue); }
 .pos-summary .mini-input { width: 140px; text-align: right; }
-.pos-summary .inline-ctl { display: inline-flex; gap: 6px; align-items: center; }
-.pos-summary .inline-ctl .mini-input { width: 140px; }
+.inline-ctl { display: inline-flex; gap: 6px; align-items: center; }
+.inline-ctl .mini-input { width: 140px; text-align: right; }
 .seg-toggle { display: inline-flex; background: #eef2f7; border: 1px solid var(--line); border-radius: 999px; padding: 2px; overflow: hidden; flex-shrink: 0; }
 .seg-btn { border: none; background: transparent; padding: 7px 12px; font-size: 13.5px; font-weight: 700; color: #64748b; cursor: pointer; border-radius: 999px; }
 .seg-btn.selected { background: var(--blue); color: #fff; box-shadow: 0 1px 4px rgba(11, 94, 215, .35); }
@@ -206,9 +206,10 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .pos-lines { max-height: 52vh; overflow-y: auto; display: grid; gap: 8px; margin: 10px 0; }
 .pos-line { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px; }
 .pos-line .ln-top { display: flex; justify-content: space-between; gap: 8px; }
-.pos-line .ln-ctl { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.pos-line .ln-ctl { display: flex; gap: 6px; align-items: center; justify-content: space-between; flex-wrap: nowrap; margin-top: 6px; }
+.qty-group, .ln-actions { display: flex; gap: 6px; align-items: center; }
 .qty-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--line); background: #fff; font-size: 16px; cursor: pointer; }
-.qty-input { width: 78px; text-align: center; font-size: 16px; font-weight: 800; padding: 4px 2px; border: 1px solid var(--line); border-radius: 6px; }
+.qty-input { width: 68px; text-align: center; font-size: 16px; font-weight: 800; padding: 4px 2px; border: 1px solid var(--line); border-radius: 6px; }
 .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .qty-input { -moz-appearance: textfield; appearance: textfield; }
 .paid-suggest { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 2px 0 6px; }
