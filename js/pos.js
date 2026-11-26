@@ -1,6 +1,30 @@
 /* KOMATI — màn hình Bán hàng (POS). */
 let posCart = []; // {productId, name, unit, qty, price, costPrice, discount, unitOptions}
 let posCustomer = null;
+let posPayment = "cash"; // cash | transfer | debt
+
+function renderPosCustomer() {
+  const picked = $("#posCustPicked"), input = $("#posCustSearch");
+  if (posCustomer) {
+    picked.hidden = false;
+    $("#posCustName").textContent = posCustomer.name;
+    $("#posCustPhone").textContent = posCustomer.phone ? " — " + posCustomer.phone : "";
+    $("#posCustDebt").textContent = (posCustomer.debt || 0) > 0 ? `Nợ ${fmt(posCustomer.debt)}đ` : "";
+    input.value = "";
+    input.placeholder = posCustomer.name + (posCustomer.phone ? " — " + posCustomer.phone : "");
+  } else {
+    picked.hidden = true;
+    input.placeholder = "🔍 Tìm khách hàng (tên, SĐT)…";
+  }
+}
+function setPosPayment(p) {
+  posPayment = p;
+  $$("#posPayBoxes .pay-box").forEach((b) => b.classList.toggle("selected", b.dataset.pay === p));
+  const t = posTotals();
+  if (p === "transfer") $("#posPaid").value = t.total;
+  if (p === "debt") $("#posPaid").value = 0;
+  updatePosTotals();
+}
 
 function newOrderCode() {
   const d = new Date();
@@ -10,7 +34,7 @@ function newOrderCode() {
 }
 function renderPOS() {
   $("#posOrderCode").textContent = newOrderCode();
-  $("#posCustomerName").textContent = posCustomer ? posCustomer.name : "Khách lẻ";
+  renderPosCustomer();
   const db = DB.get();
   const q = $("#posSearch").value.trim().toLowerCase();
   const cat = $("#posCategoryFilter").value;
@@ -62,7 +86,10 @@ $("#posSearch").addEventListener("input", () => renderPOS());
 $("#posCategoryFilter").addEventListener("change", () => renderPOS());
 ["posDiscountValue", "posDiscountType", "posShipping", "posPaid"].forEach((id) =>
   $("#" + id).addEventListener("input", updatePosTotals));
-$("#posPayment").addEventListener("change", updatePosTotals);
+$("#posPayBoxes").addEventListener("click", (e) => {
+  const b = e.target.closest(".pay-box");
+  if (b) setPosPayment(b.dataset.pay);
+});
 
 $("#posGrid").addEventListener("click", (e) => {
   const btn = e.target.closest(".pos-item");
@@ -101,23 +128,59 @@ $("#posLines").addEventListener("click", (e) => {
     renderPosCart();
   }
 });
-$("#posChooseCustomer").addEventListener("click", () => {
+/* ---------- Tìm khách hàng ở đầu hóa đơn + thêm khách mới ---------- */
+$("#posCustSearch").addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  const box = $("#posCustResults");
+  if (!q) { box.hidden = true; box.innerHTML = ""; return; }
   const db = DB.get();
-  const card = openModal(`<h3>Chọn khách hàng</h3>
-    <input id="pickCustSearch" type="search" placeholder="Tìm tên, số điện thoại…" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px" autocomplete="off">
-    <div id="pickCustList" style="margin-top:10px;display:grid;gap:6px;max-height:50vh;overflow:auto"></div>
-    <div class="modal-actions"><button class="btn btn-outline" id="pickCustRetail" type="button">Khách lẻ</button>
-    <button class="btn btn-outline" id="pickCustClose" type="button">Đóng</button></div>`);
-  const draw = (q = "") => {
-    const list = db.customers.filter((c) => !q || c.name.toLowerCase().includes(q) || (c.phone || "").includes(q));
-    $("#pickCustList", card).innerHTML = list.map((c) => `<button class="btn btn-outline" data-cid="${c.id}" type="button" style="text-align:left">${esc(c.name)}${c.phone ? " — " + esc(c.phone) : ""}${(c.debt || 0) > 0 ? ` <span style="color:var(--red)">(nợ ${fmt(c.debt)}đ)</span>` : ""}</button>`).join("") || `<p class="muted">Không tìm thấy khách hàng.</p>`;
-    $$("[data-cid]", card).forEach((b) => (b.onclick = () => { posCustomer = db.customers.find((x) => x.id === b.dataset.cid); closeModal(); renderPOS(); }));
-  };
-  draw();
-  $("#pickCustSearch", card).oninput = (e) => draw(e.target.value.trim().toLowerCase());
-  $("#pickCustRetail", card).onclick = () => { posCustomer = null; closeModal(); renderPOS(); };
-  $("#pickCustClose", card).onclick = () => closeModal();
+  const list = db.customers.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q)).slice(0, 6);
+  box.innerHTML = list.map((c) => `<button type="button" data-cid="${c.id}">${esc(c.name)}${c.phone ? " — " + esc(c.phone) : ""}${(c.debt || 0) > 0 ? ` <span style="color:var(--red)">(nợ ${fmt(c.debt)}đ)</span>` : ""}</button>`).join("")
+    + `<button type="button" class="add-new" data-add="${esc(e.target.value.trim())}">＋ Thêm khách mới "${esc(e.target.value.trim())}"</button>`;
+  box.hidden = false;
+  $$("[data-cid]", box).forEach((b) => (b.onclick = () => { posCustomer = db.customers.find((x) => x.id === b.dataset.cid); box.hidden = true; e.target.value = ""; renderPOS(); }));
+  const addBtn = $("[data-add]", box);
+  if (addBtn) addBtn.onclick = () => { box.hidden = true; e.target.value = ""; openPosQuickAddCustomer(addBtn.dataset.add); };
 });
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".pos-cust")) { const box = $("#posCustResults"); if (box) box.hidden = true; }
+});
+$("#posCustClear").addEventListener("click", () => { posCustomer = null; renderPOS(); });
+
+function openPosQuickAddCustomer(prefill) {
+  const looksPhone = /^[0-9+][0-9\s.]*$/.test((prefill || "").trim());
+  const card = openModal(`<h3>Thêm khách hàng mới</h3>
+    <form id="posCustForm">
+      <label>Tên khách hàng<input name="name" type="text" required value="${esc(looksPhone ? "" : prefill || "")}"></label>
+      <div class="form-row">
+        <label>Số điện thoại<input name="phone" type="tel" value="${esc(looksPhone ? prefill || "" : "")}"></label>
+        <label>Địa chỉ<input name="address" type="text"></label>
+      </div>
+      <div id="posCustDup" style="margin-top:10px"></div>
+      <div class="modal-actions"><button type="button" class="btn btn-outline" id="pqCancel">Hủy</button>
+      <button type="submit" class="btn btn-primary">Lưu khách hàng</button></div>
+    </form>`);
+  $("#pqCancel", card).onclick = () => closeModal();
+  $("#posCustForm", card).onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const phone = (fd.get("phone") || "").trim();
+    const name = (fd.get("name") || "").trim();
+    const db = DB.get();
+    // Trùng SĐT với khách đã lưu: hiện khách cũ ra, không tạo trùng.
+    const dup = phone && findCustomerByPhone(db, phone);
+    if (dup) {
+      $("#posCustDup", card).innerHTML = `<div class="alert alert-warn">SĐT này đã có khách hàng: <b>${esc(dup.name)}</b>${dup.phone ? " — " + esc(dup.phone) : ""}${(dup.debt || 0) > 0 ? ` · đang nợ ${fmt(dup.debt)}đ` : ""}.<br>Chọn khách này cho hóa đơn thay vì tạo mới.</div>
+      <div class="modal-actions" style="margin-top:10px"><button type="button" class="btn btn-primary" id="pqUseDup">Dùng khách này</button></div>`;
+      $("#pqUseDup", card).onclick = () => { posCustomer = dup; closeModal(); renderPOS(); };
+      return;
+    }
+    const item = { id: DB.uid("kh"), code: "KH" + String(1000000 + db.customers.length + 1), name, phone, address: (fd.get("address") || "").trim(), note: "", debt: 0, totalBought: 0 };
+    await DB.put("customers", item);
+    posCustomer = item;
+    closeModal(); renderPOS();
+  };
+}
 $("#posClear").addEventListener("click", () => {
   if (!posCart.length) return;
   if (confirm("Xóa toàn bộ hóa đơn đang tính?")) { posCart = []; posCustomer = null; renderPOS(); }
@@ -127,7 +190,7 @@ async function saveOrder(printAfter) {
   if (!posCart.length) { alert("Chưa có sản phẩm nào trong hóa đơn."); return; }
   const db = DB.get();
   const t = posTotals();
-  const payment = $("#posPayment").value;
+  const payment = posPayment;
   const paid = moneyInput($("#posPaid").value);
   if (payment === "debt" && !posCustomer) { alert("Ghi nợ cần chọn khách hàng trước."); return; }
   if (payment !== "debt" && paid < t.total) {
@@ -147,10 +210,10 @@ async function saveOrder(printAfter) {
     discountValue: t.disc, shipping: t.ship, payment, paid,
     status: "completed", createdBy: Auth.me().username,
   };
-  // Trừ kho + cập nhật công nợ / tổng mua
+  // Trừ kho + cập nhật công nợ / tổng mua (trừ theo lô hết hạn trước)
   for (const it of posCart) {
     const p = db.products.find((x) => x.id === it.productId);
-    p.stock = (p.stock || 0) - it.qty;
+    DB.deductFromLots(p, it.qty);
     await DB.put("products", p);
   }
   if (posCustomer) {
@@ -166,6 +229,7 @@ async function saveOrder(printAfter) {
   DB.logActivity(`Bán đơn hàng ${order.code} cho ${order.customerName}`, t.total, "🛒");
   posCart = []; posCustomer = null;
   $("#posDiscountValue").value = 0; $("#posShipping").value = 0; $("#posPaid").value = 0;
+  setPosPayment("cash");
   if (printAfter) printOrder(order);
   else alert(`Đã lưu hóa đơn ${order.code} — ${fmt(t.total)}đ.`);
   renderPOS();

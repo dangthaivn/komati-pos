@@ -62,6 +62,42 @@ const DB = (() => {
     };
   }
 
+  // ---- Lô hàng (dùng cho kiểm kho theo lô & trừ kho FEFO) ----
+  // Mỗi sản phẩm có danh sách lô: {id, code, expiryDate, qty}. Tồn kho =
+  // tổng số lượng các lô. Sản phẩm cũ chưa có lô thì gom toàn bộ tồn hiện
+  // tại thành 1 lô duy nhất.
+  function ensureLots(p) {
+    if (!p) return p;
+    if (!Array.isArray(p.lots)) {
+      p.lots = ((p.stock || 0) > 0 || p.expiryDate)
+        ? [{ id: uid("lo"), code: "Lô 1", expiryDate: p.expiryDate || null, qty: p.stock || 0 }]
+        : [];
+    }
+    return p;
+  }
+  function recalcStock(p) {
+    // Tồn kho = tổng các lô; hạn sử dụng của sản phẩm = HSD sớm nhất còn hàng.
+    if (Array.isArray(p.lots) && p.lots.length) {
+      p.stock = p.lots.reduce((s, l) => s + (parseFloat(l.qty) || 0), 0);
+      const exps = p.lots.filter((l) => (parseFloat(l.qty) || 0) > 0 && l.expiryDate).map((l) => l.expiryDate).sort();
+      p.expiryDate = exps.length ? exps[0] : null;
+    }
+    return p;
+  }
+  // Trừ kho theo lô hết hạn trước (FEFO): bán lô sắp hết hạn trước.
+  function deductFromLots(p, qty) {
+    if (!Array.isArray(p.lots) || !p.lots.length) { p.stock = (p.stock || 0) - qty; return; }
+    let left = qty;
+    const sorted = p.lots.slice().sort((a, b) => String(a.expiryDate || "9999").localeCompare(String(b.expiryDate || "9999")));
+    for (const lot of sorted) {
+      if (left <= 0) break;
+      const take = Math.min(parseFloat(lot.qty) || 0, left);
+      lot.qty = (parseFloat(lot.qty) || 0) - take;
+      left -= take;
+    }
+    recalcStock(p);
+  }
+
   function loadDemo() {
     try {
       const raw = localStorage.getItem(LS_KEY);
@@ -103,6 +139,7 @@ const DB = (() => {
       // còn thiếu, rồi đánh dấu đã ghi xong để lần sau không ghi lại — kể cả
       // khi Sếp đã xóa hàng mẫu.
       const s = seed();
+      s.products.forEach(ensureLots);
       const jobs = [];
       if (!settingsDoc.exists) jobs.push(saveToFirestore("settings", s.settings));
       const missing = (coll, items) => items.filter((it) => !data[coll].some((x) => x.id === it.id));
@@ -112,6 +149,7 @@ const DB = (() => {
       jobs.push(fs.collection("settings").doc("seed").set({ done: true, at: new Date().toISOString() }));
       await Promise.all(jobs);
     }
+    data.products.forEach(ensureLots);
     return data;
   }
   async function saveToFirestore(coll, item) {
@@ -161,6 +199,7 @@ const DB = (() => {
         store = emptyShell();
       }
     } else loadDemo();
+    if (store && Array.isArray(store.products)) store.products.forEach(ensureLots);
     return { firebase: ok };
   }
   // Sau khi đăng nhập thành công mới được phép đọc/ghi Firestore: tải dữ liệu
@@ -191,5 +230,5 @@ const DB = (() => {
     if (!fs) saveDemo();
   }
 
-  return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs, loadAfterLogin };
+  return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs, loadAfterLogin, ensureLots, recalcStock, deductFromLots };
 })();

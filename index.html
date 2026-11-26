@@ -271,22 +271,32 @@
             <input id="posSearch" type="search" placeholder="Tên, mã hàng, mã vạch…" autocomplete="off">
             <select id="posCategoryFilter"><option value="">Tất cả nhóm</option></select>
           </div>
-          <div class="pos-customer-row">
-            <span>👤 <b id="posCustomerName">Khách lẻ</b></span>
-            <button id="posChooseCustomer" class="btn btn-outline btn-sm" type="button">Chọn khách</button>
-            <span class="muted">Bảng giá chung</span>
-          </div>
+          <p class="muted" style="margin:0 0 10px">Bảng giá chung</p>
           <div id="posGrid" class="pos-grid"></div>
         </div>
         <div class="pos-cart card">
           <h3>Hóa đơn <span id="posOrderCode" class="muted"></span></h3>
+          <div class="pos-cust">
+            <input id="posCustSearch" type="search" placeholder="🔍 Tìm khách hàng (tên, SĐT)…" autocomplete="off">
+            <div id="posCustResults" class="pos-cust-results" hidden></div>
+          </div>
+          <div class="pos-cust-picked" id="posCustPicked" hidden>
+            <span>👤 <b id="posCustName"></b><span id="posCustPhone" class="muted"></span><span id="posCustDebt" class="debt"></span></span>
+            <button id="posCustClear" class="btn btn-ghost btn-sm" type="button" title="Về khách lẻ">✕</button>
+          </div>
           <div id="posLines" class="pos-lines"></div>
           <div class="pos-summary">
             <div class="row"><span>Tạm tính</span><b id="posSubtotal">0</b></div>
-            <div class="row"><span>Giảm giá hóa đơn</span><span><input id="posDiscountValue" type="number" min="0" value="0" class="mini-input"><select id="posDiscountType" class="mini-input"><option value="amount">đ</option><option value="percent">%</option></select></span></div>
+            <div class="row"><span>Giảm giá hóa đơn</span><span class="inline-ctl"><input id="posDiscountValue" type="number" min="0" value="0" class="mini-input"><select id="posDiscountType" class="mini-input"><option value="amount">đ</option><option value="percent">%</option></select></span></div>
             <div class="row"><span>Thu khác (ship)</span><input id="posShipping" type="number" min="0" value="0" class="mini-input"></div>
             <div class="row total"><span>Tổng tiền</span><b id="posTotal">0</b></div>
-            <div class="row"><span>Thanh toán</span><select id="posPayment" class="mini-input"><option value="cash">Tiền mặt</option><option value="transfer">Chuyển khoản</option><option value="debt">Ghi nợ</option></select></div>
+          </div>
+          <div class="pay-boxes" id="posPayBoxes">
+            <button type="button" class="pay-box selected" data-pay="cash">💵<span>Tiền mặt</span></button>
+            <button type="button" class="pay-box" data-pay="transfer">🏦<span>Chuyển khoản</span></button>
+            <button type="button" class="pay-box" data-pay="debt">📒<span>Ghi nợ</span></button>
+          </div>
+          <div class="pos-summary">
             <div class="row"><span>Khách đưa</span><input id="posPaid" type="number" min="0" value="0" class="mini-input"></div>
             <div class="row"><span>Tiền thừa</span><b id="posChange">0</b></div>
           </div>

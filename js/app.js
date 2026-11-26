@@ -8,10 +8,28 @@ function dstr(d) { const p = (n) => String(n).padStart(2, "0"); return `${d.getF
 function dLabel(iso) { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
 function moneyInput(v) { return DB.parseNum(v); }
 
+/* ---------- Chống trùng lặp ---------- */
+// Chuẩn hóa SĐT để so sánh: chỉ giữ chữ số, +84… → 0…
+function normPhone(p) {
+  let d = String(p || "").replace(/\D/g, "");
+  if (d.startsWith("84") && d.length === 11) d = "0" + d.slice(2);
+  return d;
+}
+function findCustomerByPhone(db, phone) {
+  const n = normPhone(phone);
+  if (!n) return null;
+  return db.customers.find((c) => normPhone(c.phone) === n) || null;
+}
+function findProductByCode(db, code, excludeId) {
+  const c = String(code || "").trim().toLowerCase();
+  if (!c) return null;
+  return db.products.find((p) => String(p.code || "").trim().toLowerCase() === c && p.id !== excludeId) || null;
+}
+
 /* ---------- Modal dùng chung ---------- */
 function openModal(html, wide = false) {
   const m = $("#modal"), card = $("#modalCard");
-  card.className = "modal-card" + (wide ? " wide" : "");
+  card.className = "modal-card" + (wide === "xl" ? " xl" : wide ? " wide" : "");
   card.innerHTML = html;
   m.hidden = false;
   return card;
@@ -322,6 +340,7 @@ function productFormHTML(p) {
         <button type="button" class="btn btn-outline" id="addCategoryBtn" title="Thêm nhóm mới">+</button></span>
       </label>
     </div>
+    <div id="pfDupWarn"></div>
     <label>Tên hàng<input name="name" type="text" required value="${esc(p?.name || "")}"></label>
     <label>Ảnh hàng hóa
       <span class="file-row"><input type="file" id="productImageInput" accept="image/*" hidden>
@@ -338,7 +357,19 @@ function productFormHTML(p) {
       <label>Tồn kho hiện tại<input name="stock" type="number" min="0" step="0.01" value="${p?.stock ?? 0}"></label>
     </div>
     <label>Đơn vị tính phụ (VD: Thùng = 5 Kg, giá riêng)<textarea name="units" rows="2" placeholder="Mỗi dòng: Tên | hệ số quy đổi | giá bán. VD: Thùng | 5 | 3875000">${esc((p?.units || []).map((u) => `${u.name} | ${u.factor} | ${u.price}`).join("\n"))}</textarea></label>
-    <label>Hạn sử dụng (để trống nếu không có date)<input name="expiryDate" type="date" value="${p?.expiryDate || ""}"></label>
+    <div class="lots-box">
+      <label style="font-weight:700">Lô hàng &amp; hạn sử dụng</label>
+      <p class="muted" style="margin:2px 0 8px">Mỗi lần nhập hàng thêm 1 lô (mã lô, hạn sử dụng, số lượng). Tồn kho = tổng số lượng các lô. Khi bán, app trừ lô sắp hết hạn trước.</p>
+      <table class="tbl" style="min-width:0"><thead><tr><th>Mã lô</th><th>Hạn sử dụng</th><th class="num">Số lượng</th><th></th></tr></thead>
+      <tbody id="pfLots"></tbody></table>
+      <div class="form-row" style="margin-top:8px">
+        <label>Mã lô mới<input id="pfLotCode" type="text" placeholder="VD: Lô 26/12"></label>
+        <label>HSD<input id="pfLotExp" type="date"></label>
+        <label>Số lượng<input id="pfLotQty" type="number" min="0" step="0.01"></label>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" id="pfAddLot">＋ Thêm lô</button>
+      <p class="muted" id="pfLotTotal" style="margin:8px 0 0"></p>
+    </div>
     <div class="modal-actions">
       <button type="button" class="btn btn-outline" id="pfCancel">Hủy</button>
       <button type="submit" class="btn btn-primary">Lưu hàng hóa</button>
@@ -348,6 +379,44 @@ function productFormHTML(p) {
 function openProductForm(p) {
   const card = openModal(productFormHTML(p), true);
   let imageData = p?.image || "";
+  let formLots = (p?.lots || []).map((l) => ({ ...l }));
+  const unitVal = () => (card.querySelector('[name="unit"]')?.value || "Cái");
+  function drawLots() {
+    $("#pfLots", card).innerHTML = formLots.map((l, i) => `<tr><td>${esc(l.code)}</td><td>${l.expiryDate ? dLabel(l.expiryDate) : "—"}</td><td class="num">${l.qty}</td><td><button type="button" class="btn btn-ghost btn-sm" data-lotrm="${i}" style="color:var(--red)">✕</button></td></tr>`).join("") || `<tr><td colspan="4" class="muted">Chưa có lô nào — hàng không theo dõi hạn sử dụng.</td></tr>`;
+    const total = formLots.reduce((s, l) => s + (parseFloat(l.qty) || 0), 0);
+    $("#pfLotTotal", card).textContent = `Tồn kho = tổng các lô: ${total} ${unitVal()}`;
+    const stockInput = card.querySelector('[name="stock"]');
+    stockInput.disabled = formLots.length > 0;
+    if (formLots.length) stockInput.value = total;
+  }
+  drawLots();
+  $("#pfLots", card).addEventListener("click", (e) => {
+    const b = e.target.closest("[data-lotrm]");
+    if (!b) return;
+    formLots.splice(+b.dataset.lotrm, 1);
+    drawLots();
+  });
+  $("#pfAddLot", card).onclick = () => {
+    const code = $("#pfLotCode", card).value.trim();
+    const exp = $("#pfLotExp", card).value || null;
+    const qty = parseFloat($("#pfLotQty", card).value) || 0;
+    if (!code) { alert("Nhập mã lô (VD: Lô 26/12)."); return; }
+    if (qty <= 0) { alert("Nhập số lượng lô lớn hơn 0."); return; }
+    formLots.push({ id: DB.uid("lo"), code, expiryDate: exp, qty });
+    $("#pfLotCode", card).value = ""; $("#pfLotExp", card).value = ""; $("#pfLotQty", card).value = "";
+    drawLots();
+  };
+  card.querySelector('[name="unit"]').addEventListener("input", drawLots);
+  // Cảnh báo trùng mã hàng / mã vạch ngay khi gõ xong (quét mã vạch cũng vậy).
+  const codeInput = card.querySelector('[name="code"]');
+  const showCodeDup = () => {
+    const dup = findProductByCode(DB.get(), codeInput.value, p?.id);
+    $("#pfDupWarn", card).innerHTML = dup ? `<div class="alert alert-warn">Mã <b>${esc(codeInput.value.trim())}</b> đã có mặt hàng: <b>${esc(dup.name)}</b> — giá bán ${fmt(dup.price)}đ, tồn ${dup.stock} ${esc(dup.unit)}.<br>Quét mã vạch trùng sẽ hiện mặt hàng đã lưu, không tạo trùng.</div>
+    <div style="margin-top:8px"><button type="button" class="btn btn-outline" id="pfOpenDup">Mở mặt hàng này</button></div>` : "";
+    const b = $("#pfOpenDup", card);
+    if (b) b.onclick = () => { closeModal(); openProductForm(dup); };
+  };
+  codeInput.addEventListener("change", showCodeDup);
   $("#productImageBtn", card).onclick = () => $("#productImageInput", card).click();
   $("#productImageInput", card).onchange = (e) => {
     const f = e.target.files[0]; if (!f) return;
@@ -371,9 +440,20 @@ function openProductForm(p) {
     const units = String(fd.get("units") || "").split("\n").map((l) => l.split("|").map((s) => s.trim())).filter((a) => a[0])
       .map(([name, factor, price]) => ({ name, factor: parseFloat(factor) || 1, price: parseFloat(price) || 0 }));
     const db = DB.get();
+    let code = (fd.get("code") || "").trim();
+    if (!code) {
+      // Tự sinh mã chưa từng dùng (tránh trùng khi đã xóa hàng trước đó).
+      let n = db.products.length + 1;
+      do { code = "SP" + String(n).padStart(6, "0"); n++; } while (db.products.some((x) => x.code === code));
+    }
+    const dup = findProductByCode(db, code, p?.id);
+    if (dup) { showCodeDup(); alert("Mã hàng này đã tồn tại. Mở mặt hàng đã lưu để sửa thay vì tạo mới."); return; }
+    const lots = formLots.map((l) => ({ ...l }));
+    const stock = lots.length ? lots.reduce((s, l) => s + (parseFloat(l.qty) || 0), 0) : (parseFloat(fd.get("stock")) || 0);
+    const exps = lots.filter((l) => (parseFloat(l.qty) || 0) > 0 && l.expiryDate).map((l) => l.expiryDate).sort();
     const item = {
       id: p?.id || DB.uid("sp"),
-      code: (fd.get("code") || "").trim() || ("SP" + String(db.products.length + 1).padStart(6, "0")),
+      code,
       name: fd.get("name").trim(),
       categoryId: fd.get("categoryId"),
       image: imageData,
@@ -381,8 +461,9 @@ function openProductForm(p) {
       price: moneyInput(fd.get("price")),
       unit: fd.get("unit").trim(),
       units,
-      stock: parseFloat(fd.get("stock")) || 0,
-      expiryDate: fd.get("expiryDate") || null,
+      lots,
+      stock,
+      expiryDate: exps.length ? exps[0] : null,
     };
     await DB.put("products", item);
     closeModal(); renderProducts();
@@ -639,14 +720,28 @@ function openCustomerForm(c) {
       </div>
       <label>Địa chỉ<input name="address" type="text" value="${esc(c?.address || "")}"></label>
       <label>Ghi chú<textarea name="note" rows="2">${esc(c?.note || "")}</textarea></label>
+      <div id="cuDupWarn"></div>
       <div class="modal-actions"><button type="button" class="btn btn-outline" id="cuCancel">Hủy</button>
       <button type="submit" class="btn btn-primary">Lưu khách hàng</button></div>
     </form>`);
   $("#cuCancel", card).onclick = () => closeModal();
+  // Cảnh báo trùng SĐT với khách đã lưu — hiện khách cũ ra để khỏi tạo trùng.
+  const phoneInput = card.querySelector('[name="phone"]');
+  const showPhoneDup = () => {
+    const dup = findCustomerByPhone(DB.get(), phoneInput.value);
+    const other = dup && dup.id !== c?.id ? dup : null;
+    $("#cuDupWarn", card).innerHTML = other ? `<div class="alert alert-warn">SĐT này đã có khách hàng: <b>${esc(other.name)}</b>${other.phone ? " — " + esc(other.phone) : ""}${(other.debt || 0) > 0 ? ` · đang nợ ${fmt(other.debt)}đ` : ""}.<br>Mở khách đã lưu thay vì tạo mới.</div>
+    <div style="margin-top:8px"><button type="button" class="btn btn-outline" id="cuOpenDup">Mở khách này</button></div>` : "";
+    const b = $("#cuOpenDup", card);
+    if (b) b.onclick = () => { closeModal(); openCustomerForm(other); };
+  };
+  phoneInput.addEventListener("change", showPhoneDup);
   $("#customerForm", card).onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const db = DB.get();
+    const dup = findCustomerByPhone(db, fd.get("phone"));
+    if (dup && dup.id !== c?.id) { showPhoneDup(); alert("Số điện thoại này đã có khách hàng. Mở khách đã lưu để sửa thay vì tạo mới."); return; }
     const item = {
       id: c?.id || DB.uid("kh"),
       code: (fd.get("code") || "").trim() || ("KH" + String(1000000 + db.customers.length + 1)),
@@ -962,44 +1057,59 @@ function printOrder(o) {
 
 boot();
 
-/* ---------- KIỂM KHO ---------- */
+/* ---------- KIỂM KHO (theo từng lô hàng) ---------- */
 function openStockCheck() {
   const db = DB.get();
-  const inStock = db.products.filter((p) => (p.stock || 0) > 0);
   const history = (db.stockChecks || []).slice().sort((a, b) => (b.time || "").localeCompare(a.time || "")).slice(0, 5);
   const card = openModal(`<h3>📋 Kiểm kho</h3>
-    <p class="muted">Chọn các mặt hàng còn tồn để kiểm. Nhập số lượng đếm thực tế — tồn kho sẽ được cập nhật theo số đếm. Nút <b>Hết hàng</b> đưa số lượng về 0.</p>
+    <p class="muted">Chọn các mặt hàng còn tồn để kiểm. Nhập số lượng đếm thực tế — tồn kho sẽ được cập nhật theo số đếm. Hàng có hạn sử dụng được kiểm theo từng lô: chọn đúng lô cần kiểm (VD: Bánh trứng có 2 lô HSD 26/12/2026 và 26/10/2027 thì đếm riêng từng lô). Nút <b>Hết hàng</b> đưa số lượng lô đó về 0.</p>
     <div class="toolbar" style="margin-top:10px">
-      <input id="scSearch" type="search" placeholder="Tìm theo mã, tên hàng…" autocomplete="off">
+      <input id="scSearch" type="search" placeholder="Tìm theo mã, tên hàng, mã lô…" autocomplete="off">
       <label class="check" style="margin:0"><input id="scOnlyStock" type="checkbox" checked> Chỉ hiện hàng còn tồn</label>
     </div>
     <label class="check"><input id="scCheckAll" type="checkbox" checked> Chọn tất cả mặt hàng đang hiện</label>
-    <div style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px">
-      <table class="tbl" style="min-width:0"><thead><tr><th class="cb"></th><th>Sản phẩm</th><th class="num">Tồn hệ thống</th><th class="num">Đếm thực tế</th><th class="num">Chênh lệch</th><th></th></tr></thead>
+    <div style="max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:8px">
+      <table class="tbl" style="min-width:0"><thead><tr><th class="cb"></th><th>Sản phẩm / Lô hàng</th><th class="num">Tồn hệ thống</th><th class="num">Đếm thực tế</th><th class="num">Chênh lệch</th><th></th></tr></thead>
       <tbody id="scTable"></tbody></table>
     </div>
     <p id="scSummary" class="muted" style="margin:10px 0 0"></p>
     ${history.length ? `<h3 style="margin-top:16px">Lịch sử kiểm kho gần đây</h3>
-    <div>${history.map((h) => `<div class="rank-row"><span>${new Date(h.time).toLocaleString("vi-VN")} — ${h.code}</span><b>${h.items.length} mặt hàng · chênh lệch ${fmt(h.totalDiff)} </b></div>`).join("")}</div>` : ""}
+    <div>${history.map((h) => `<div class="rank-row"><span>${new Date(h.time).toLocaleString("vi-VN")} — ${h.code}</span><b>${h.items.length} dòng kiểm · chênh lệch ${fmt(h.totalDiff)} </b></div>`).join("")}</div>` : ""}
     <div class="modal-actions">
       <button type="button" class="btn btn-outline" id="scCancel">Hủy</button>
       <button type="button" class="btn btn-primary" id="scSave">Lưu kiểm kho</button>
-    </div>`, true);
+    </div>`, "xl");
 
+  function lotRows(p) {
+    const lots = p.lots || [];
+    if (!lots.length) {
+      return `<tr data-pid="${p.id}" data-lot="">
+      <td class="cb"><input type="checkbox" class="sc-check" data-id="${p.id}" data-lot="" checked></td>
+      <td><span class="pname">${esc(p.name)}</span><br><span class="psub">${esc(p.code)} · ${esc(p.unit)}</span></td>
+      <td class="num" data-sys="${p.stock}">${p.stock} ${esc(p.unit)}</td>
+      <td class="num"><input type="number" class="mini-input sc-counted" data-id="${p.id}" data-lot="" min="0" step="0.01" value="${p.stock}" style="width:80px;text-align:right"></td>
+      <td class="num sc-diff" data-id="${p.id}" data-lot="">0</td>
+      <td><button type="button" class="btn btn-outline btn-sm sc-zero" data-id="${p.id}" data-lot="">Hết hàng</button></td>
+    </tr>`;
+    }
+    const head = `<tr class="sc-prod" data-pid="${p.id}"><td></td><td colspan="5"><span class="pname">${esc(p.name)}</span> <span class="psub">${esc(p.code)} · ${esc(p.unit)} · tồn tổng ${p.stock}</span></td></tr>`;
+    return head + lots.map((l) => `<tr class="sc-lot" data-pid="${p.id}" data-lot="${l.id}">
+      <td class="cb"><input type="checkbox" class="sc-check" data-id="${p.id}" data-lot="${l.id}" checked></td>
+      <td>↳ <b>${esc(l.code)}</b><br><span class="psub">HSD: ${l.expiryDate ? dLabel(l.expiryDate) : "không có"}</span></td>
+      <td class="num" data-sys="${l.qty}">${l.qty} ${esc(p.unit)}</td>
+      <td class="num"><input type="number" class="mini-input sc-counted" data-id="${p.id}" data-lot="${l.id}" min="0" step="0.01" value="${l.qty}" style="width:80px;text-align:right"></td>
+      <td class="num sc-diff" data-id="${p.id}" data-lot="${l.id}">0</td>
+      <td><button type="button" class="btn btn-outline btn-sm sc-zero" data-id="${p.id}" data-lot="${l.id}">Hết hàng</button></td>
+    </tr>`).join("");
+  }
   function drawRows() {
     const q = $("#scSearch", card).value.trim().toLowerCase();
     const onlyStock = $("#scOnlyStock", card).checked;
     const list = db.products.filter((p) =>
       (!onlyStock || (p.stock || 0) > 0) &&
-      (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)));
-    $("#scTable", card).innerHTML = list.map((p) => `<tr data-pid="${p.id}">
-      <td class="cb"><input type="checkbox" class="sc-check" data-id="${p.id}" checked></td>
-      <td><span class="pname">${esc(p.name)}</span><br><span class="psub">${esc(p.code)} · ${esc(p.unit)}</span></td>
-      <td class="num" data-sys="${p.stock}">${p.stock} ${esc(p.unit)}</td>
-      <td class="num"><input type="number" class="mini-input sc-counted" data-id="${p.id}" min="0" step="0.01" value="${p.stock}" style="width:80px;text-align:right"></td>
-      <td class="num sc-diff" data-id="${p.id}">0</td>
-      <td><button type="button" class="btn btn-outline btn-sm sc-zero" data-id="${p.id}">Hết hàng</button></td>
-    </tr>`).join("") || `<tr><td colspan="6" class="muted" style="text-align:center;padding:20px">Không có mặt hàng nào khớp.</td></tr>`;
+      (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) ||
+        (p.lots || []).some((l) => (l.code || "").toLowerCase().includes(q))));
+    $("#scTable", card).innerHTML = list.map(lotRows).join("") || `<tr><td colspan="6" class="muted" style="text-align:center;padding:20px">Không có mặt hàng nào khớp.</td></tr>`;
     updateSummary();
   }
   function updateSummary() {
@@ -1008,7 +1118,7 @@ function openStockCheck() {
       const row = cb.closest("tr");
       const sys = parseFloat(row.querySelector("[data-sys]").dataset.sys) || 0;
       const counted = parseFloat(row.querySelector(".sc-counted").value) || 0;
-      const d = counted - sys;
+      const d = Math.round((counted - sys) * 100) / 100;
       const cell = row.querySelector(".sc-diff");
       cell.textContent = (d > 0 ? "+" : "") + d;
       cell.style.color = d === 0 ? "inherit" : d > 0 ? "var(--green)" : "var(--red)";
@@ -1020,7 +1130,7 @@ function openStockCheck() {
       const cell = row.querySelector(".sc-diff");
       cell.textContent = "—"; cell.style.color = "inherit";
     });
-    $("#scSummary", card).textContent = `Đã chọn ${n} mặt hàng · Tổng chênh lệch: ${diff > 0 ? "+" : ""}${diff} (đơn vị tính từng mặt hàng)`;
+    $("#scSummary", card).textContent = `Đã chọn ${n} dòng kiểm · Tổng chênh lệch: ${diff > 0 ? "+" : ""}${Math.round(diff * 100) / 100} (đơn vị tính từng mặt hàng)`;
   }
   drawRows();
   $("#scSearch", card).addEventListener("input", drawRows);
@@ -1044,20 +1154,27 @@ function openStockCheck() {
   $("#scSave", card).onclick = async () => {
     const items = [];
     let changed = 0;
+    const touched = new Map();
     for (const cb of $$(".sc-check:checked", card)) {
       const row = cb.closest("tr");
       const p = db.products.find((x) => x.id === cb.dataset.id);
       if (!p) continue;
       const counted = parseFloat(row.querySelector(".sc-counted").value) || 0;
-      const sys = p.stock || 0;
-      items.push({ productId: p.id, name: p.name, unit: p.unit, systemQty: sys, countedQty: counted, diff: counted - sys });
-      if (counted !== sys) {
-        p.stock = counted;
-        await DB.put("products", p);
-        changed++;
+      const lotId = cb.dataset.lot || "";
+      if (lotId) {
+        const lot = (p.lots || []).find((l) => l.id === lotId);
+        if (!lot) continue;
+        const sys = parseFloat(lot.qty) || 0;
+        items.push({ productId: p.id, name: p.name, unit: p.unit, lotId, lotCode: lot.code, expiryDate: lot.expiryDate || null, systemQty: sys, countedQty: counted, diff: Math.round((counted - sys) * 100) / 100 });
+        if (counted !== sys) { lot.qty = counted; changed++; touched.set(p.id, p); }
+      } else {
+        const sys = p.stock || 0;
+        items.push({ productId: p.id, name: p.name, unit: p.unit, lotId: "", lotCode: "", expiryDate: p.expiryDate || null, systemQty: sys, countedQty: counted, diff: Math.round((counted - sys) * 100) / 100 });
+        if (counted !== sys) { p.stock = counted; changed++; touched.set(p.id, p); }
       }
     }
     if (!items.length) { alert("Chưa chọn mặt hàng nào để kiểm."); return; }
+    for (const p of touched.values()) { DB.recalcStock(p); await DB.put("products", p); }
     const totalDiff = items.reduce((s, it) => s + it.diff, 0);
     const rec = {
       id: DB.uid("kk"), code: "KK" + Date.now().toString().slice(-6),
@@ -1065,10 +1182,10 @@ function openStockCheck() {
       items, totalDiff, createdBy: Auth.me() ? Auth.me().username : "",
     };
     await DB.put("stockChecks", rec);
-    DB.logActivity(`Kiểm kho ${rec.code}: ${items.length} mặt hàng, ${changed} mặt hàng đổi số lượng`, totalDiff, "📋");
+    DB.logActivity(`Kiểm kho ${rec.code}: ${items.length} dòng kiểm, ${changed} dòng đổi số lượng`, totalDiff, "📋");
     closeModal();
     renderProducts();
-    alert(`Đã lưu bản kiểm kho ${rec.code}.\nĐã kiểm ${items.length} mặt hàng, ${changed} mặt hàng thay đổi số lượng.`);
+    alert(`Đã lưu bản kiểm kho ${rec.code}.\nĐã kiểm ${items.length} dòng, ${changed} dòng thay đổi số lượng.`);
   };
 }
 $("#stockCheckBtn").addEventListener("click", openStockCheck);
