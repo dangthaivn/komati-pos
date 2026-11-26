@@ -95,7 +95,16 @@ const DB = (() => {
         data[c] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       }
     }
-    if (!data.products.length && !data.categories.length) { const s = seed(); Object.assign(data, { categories: s.categories, products: s.products, customers: s.customers, settings: s.settings }); }
+    if (!data.products.length && !data.categories.length) {
+      // Lần đầu nối Firebase: ghi dữ liệu mẫu (hàng hóa + khách hàng Farm Plus)
+      // lên Firestore để dữ liệu tồn tại thật và đồng bộ giữa các máy.
+      const s = seed();
+      Object.assign(data, { categories: s.categories, products: s.products, customers: s.customers, settings: s.settings });
+      await saveToFirestore("settings", s.settings);
+      for (const c of s.categories) await saveToFirestore("categories", c);
+      for (const p of s.products) await saveToFirestore("products", p);
+      for (const c of s.customers) await saveToFirestore("customers", c);
+    }
     return data;
   }
   async function saveToFirestore(coll, item) {

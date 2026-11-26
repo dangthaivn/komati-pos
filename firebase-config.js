@@ -12,10 +12,10 @@
  * CHƯA CÓ CẤU HÌNH: app vẫn chạy đầy đủ ở chế độ demo (dữ liệu lưu trên máy đang dùng).
  */
 window.KOMATI_FIREBASE_CONFIG = {
-  apiKey: "PASTE_API_KEY_HERE",
-  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_PROJECT_ID.appspot.com",
-  messagingSenderId: "PASTE_SENDER_ID",
-  appId: "PASTE_APP_ID",
+  apiKey: "AIzaSyAr3WmHI5FCaqo6zwV9eOZfh1QhyrZtFLk",
+  authDomain: "komati-31dc0.firebaseapp.com",
+  projectId: "komati-31dc0",
+  storageBucket: "komati-31dc0.firebasestorage.app",
+  messagingSenderId: "689398001004",
+  appId: "1:689398001004:web:f17a15dfd580c4294d1749",
 };
