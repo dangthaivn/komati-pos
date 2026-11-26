@@ -86,24 +86,31 @@ const DB = (() => {
   const COLS = ["settings", "categories", "products", "customers", "employees", "orders", "cashEntries", "stockIns", "stockChecks", "activity"];
   async function loadFromFirestore() {
     const data = { meta: { version: 1 } };
-    for (const c of COLS) {
-      if (c === "settings") {
-        const doc = await fs.collection("settings").doc("store").get();
-        data.settings = doc.exists ? doc.data() : seed().settings;
-      } else {
-        const snap = await fs.collection(c).get();
-        data[c] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      }
-    }
-    if (!data.products.length && !data.categories.length) {
-      // Lần đầu nối Firebase: ghi dữ liệu mẫu (hàng hóa + khách hàng Farm Plus)
-      // lên Firestore để dữ liệu tồn tại thật và đồng bộ giữa các máy.
+    // Đọc song song cho nhanh (trước đây đọc tuần tự từng collection nên
+    // lần đăng nhập đầu mất hàng chục giây).
+    const [settingsDoc, seedMarker, ...snaps] = await Promise.all([
+      fs.collection("settings").doc("store").get(),
+      fs.collection("settings").doc("seed").get(),
+      ...COLS.filter((c) => c !== "settings").map((c) => fs.collection(c).get()),
+    ]);
+    COLS.filter((c) => c !== "settings").forEach((c, i) => {
+      data[c] = snaps[i].docs.map((d) => ({ id: d.id, ...d.data() }));
+    });
+    data.settings = settingsDoc.exists ? settingsDoc.data() : seed().settings;
+    if (!seedMarker.exists) {
+      // Lần đầu nối Firebase (hoặc lần ghi mẫu trước bị ngắt giữa chừng, ví dụ
+      // tải lại trang lúc đang đăng nhập lần đầu): chỉ ghi thêm những mục mẫu
+      // còn thiếu, rồi đánh dấu đã ghi xong để lần sau không ghi lại — kể cả
+      // khi Sếp đã xóa hàng mẫu.
       const s = seed();
-      Object.assign(data, { categories: s.categories, products: s.products, customers: s.customers, settings: s.settings });
-      await saveToFirestore("settings", s.settings);
-      for (const c of s.categories) await saveToFirestore("categories", c);
-      for (const p of s.products) await saveToFirestore("products", p);
-      for (const c of s.customers) await saveToFirestore("customers", c);
+      const jobs = [];
+      if (!settingsDoc.exists) jobs.push(saveToFirestore("settings", s.settings));
+      const missing = (coll, items) => items.filter((it) => !data[coll].some((x) => x.id === it.id));
+      for (const c of missing("categories", s.categories)) { data.categories.push(c); jobs.push(saveToFirestore("categories", c)); }
+      for (const p of missing("products", s.products)) { data.products.push(p); jobs.push(saveToFirestore("products", p)); }
+      for (const cu of missing("customers", s.customers)) { data.customers.push(cu); jobs.push(saveToFirestore("customers", cu)); }
+      jobs.push(fs.collection("settings").doc("seed").set({ done: true, at: new Date().toISOString() }));
+      await Promise.all(jobs);
     }
     return data;
   }

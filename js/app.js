@@ -44,11 +44,22 @@ $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const u = $("#loginUser").value, p = $("#loginPass").value;
   const err = $("#loginError");
-  const res = await Auth.login(u, p);
-  if (!res.ok) { err.textContent = res.error; err.hidden = false; return; }
-  Auth.setRememberedUser(u.trim(), $("#loginRemember").checked);
-  err.hidden = true;
-  enterApp();
+  const btn = $("#loginForm button[type=submit]");
+  // Hiện trạng thái đang xử lý để Sếp biết app đang làm việc (lần đăng nhập
+  // đầu tải dữ liệu nên mất vài giây, trước đây nút im lặng nên tưởng là hỏng).
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = "Đang đăng nhập...";
+  try {
+    const res = await Auth.login(u, p);
+    if (!res.ok) { err.textContent = res.error; err.hidden = false; return; }
+    Auth.setRememberedUser(u.trim(), $("#loginRemember").checked);
+    err.hidden = true;
+    enterApp();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
 });
 // Nút con mắt: hiện / ẩn mật khẩu đã gõ. Icon nét đơn giản như ảnh Sếp gửi.
 const EYE_OPEN = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
