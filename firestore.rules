@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Chỉ người đã đăng nhập (nhân viên cửa hàng) mới đọc/ghi dữ liệu.
+    // Phân quyền chi tiết theo vai trò nằm ở app (js/auth.js).
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b5ed7">
+<meta name="description" content="KOMATI — Bán hàng và quản lý cửa hàng">
+<title>KOMATI — Bán hàng và quản lý cửa hàng</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+</head>
+<body>
+
+<!-- ============ MÀN HÌNH ĐĂNG NHẬP ============ -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo"><span>K</span></div>
+    <h1>KOMATI</h1>
+    <p class="login-sub">Bán hàng và quản lý cửa hàng</p>
+    <form id="loginForm" autocomplete="off">
+      <label>Tên đăng nhập
+        <input id="loginUser" type="text" autocomplete="username" autocapitalize="off" spellcheck="false">
+      </label>
+      <label>Mật khẩu
+        <input id="loginPass" type="password" autocomplete="current-password">
+      </label>
+      <label class="remember"><input id="loginRemember" type="checkbox"> Ghi nhớ đăng nhập</label>
+      <p id="loginError" class="error" hidden></p>
+      <button class="btn btn-primary btn-block" type="submit">Đăng nhập</button>
+    </form>
+    <p class="login-note">Chỉ dùng cho cửa hàng của bạn. Tài khoản do quản trị viên cấp.</p>
+  </div>
+</div>
+
+<!-- ============ APP CHÍNH ============ -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-mark">K</span><span class="brand-name">KOMATI</span></div>
+      <nav class="topnav" id="topnav">
+        <button class="nav-tab active" data-view="dashboard" type="button">Tổng quan</button>
+        <button class="nav-tab" data-view="products" type="button">Hàng hóa</button>
+        <button class="nav-tab" data-view="orders" type="button">Đơn hàng</button>
+        <button class="nav-tab" data-view="customers" type="button">Khách hàng</button>
+        <button class="nav-tab" data-view="employees" type="button">Nhân viên</button>
+        <button class="nav-tab" data-view="cashbook" type="button">Sổ quỹ</button>
+        <button class="nav-tab" data-view="print" type="button">In ấn</button>
+      </nav>
+      <div class="topbar-right">
+        <span id="expiryBell" class="bell" title="Sắp hết hạn">🔔<b id="expiryCount" hidden>0</b></span>
+        <span id="currentUserLabel" class="user-label"></span>
+        <button id="posBtn" class="btn btn-pos" type="button">🛒 Bán hàng</button>
+        <button id="logoutBtn" class="btn btn-ghost" type="button" title="Đăng xuất">⎋</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ===== TỔNG QUAN ===== -->
+    <section id="view-dashboard" class="view">
+      <div class="page-head">
+        <h2>Tổng quan</h2>
+        <div class="period-picker">
+          <select id="periodSelect">
+            <option value="today" selected>Hôm nay</option>
+            <option value="week">Tuần này</option>
+            <option value="month">Tháng này</option>
+            <option value="custom">Ngày tùy chọn</option>
+          </select>
+          <input id="periodDate" type="date" hidden>
+        </div>
+      </div>
+      <div id="expiryAlert" class="alert alert-warn" hidden></div>
+      <div class="stat-grid">
+        <div class="stat-card"><span class="stat-label">💰 Doanh thu</span><b id="statRevenue">0</b><span class="stat-sub" id="statRevenueSub"></span></div>
+        <div class="stat-card"><span class="stat-label">↩️ Trả hàng</span><b id="statReturns">0</b><span class="stat-sub" id="statReturnsSub"></span></div>
+        <div class="stat-card"><span class="stat-label">📈 Lợi nhuận gộp</span><b id="statProfit">0</b><span class="stat-sub" id="statProfitSub"></span></div>
+        <div class="stat-card"><span class="stat-label">🧾 Hóa đơn</span><b id="statOrders">0</b><span class="stat-sub" id="statOrdersSub"></span></div>
+      </div>
+      <div class="dash-grid">
+        <div class="dash-col">
+          <div class="card">
+            <div class="card-head"><h3>Doanh thu từng ngày trong tháng</h3><span id="revMonthLabel" class="muted"></span></div>
+            <div id="revChart" class="bar-chart"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Top 10 mặt hàng bán chạy</h3></div>
+            <div id="topProducts" class="rank-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Top 10 khách hàng mua nhiều nhất</h3></div>
+            <div id="topCustomers" class="rank-list"></div>
+          </div>
+        </div>
+        <aside class="dash-side card">
+          <div class="card-head"><h3>Hoạt động gần đây</h3></div>
+          <div id="activityFeed" class="activity"></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===== HÀNG HÓA ===== -->
+    <section id="view-products" class="view" hidden>
+      <div class="page-head">
+        <h2>Hàng hóa</h2>
+        <div class="head-actions">
+          <button id="stockCheckBtn" class="btn btn-outline" type="button">📋 Kiểm kho</button>
+          <button id="importProductsBtn" class="btn btn-outline" type="button">⇪ Import file</button>
+          <button id="templateProductsBtn" class="btn btn-outline" type="button">⇩ File mẫu Excel</button>
+          <button id="addProductBtn" class="btn btn-primary" type="button">+ Tạo mới</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input id="productSearch" type="search" placeholder="Tìm theo mã, tên hàng…" autocomplete="off">
+        <select id="productCategoryFilter"><option value="">Tất cả nhóm hàng</option></select>
+        <span id="productCount" class="muted"></span>
+      </div>
+      <div id="bulkBarProducts" class="bulk-bar" hidden>
+        <span id="bulkProductsText"></span>
+        <button id="bulkDeleteProducts" class="btn btn-danger" type="button">Xóa đã chọn</button>
+      </div>
+      <div class="card table-card">
+        <table class="tbl">
+          <thead><tr><th class="cb"><input id="checkAllProducts" type="checkbox"></th><th>Mã hàng</th><th>Tên hàng</th><th>Nhóm</th><th>Giá bán</th><th>Giá vốn</th><th>Tồn kho</th><th>Hạn sử dụng</th><th></th></tr></thead>
+          <tbody id="productTable"></tbody>
+        </table>
+      </div>
+      <input id="productFileInput" type="file" accept=".xlsx,.xls,.csv" hidden>
+    </section>
+
+    <!-- ===== ĐƠN HÀNG ===== -->
+    <section id="view-orders" class="view" hidden>
+      <div class="page-head">
+        <h2>Đơn hàng</h2>
+        <div class="period-picker">
+          <select id="orderPeriodSelect">
+            <option value="today" selected>Hôm nay</option>
+            <option value="week">Tuần này</option>
+            <option value="month">Tháng này</option>
+            <option value="custom">Ngày tùy chọn</option>
+          </select>
+          <input id="orderPeriodDate" type="date" hidden>
+        </div>
+      </div>
+      <div id="bulkBarOrders" class="bulk-bar" hidden>
+        <span id="bulkOrdersText"></span>
+        <button id="bulkDeleteOrders" class="btn btn-danger" type="button">Xóa đã chọn</button>
+      </div>
+      <div class="card table-card">
+        <table class="tbl">
+          <thead><tr><th class="cb"><input id="checkAllOrders" type="checkbox"></th><th>Mã hóa đơn</th><th>Thời gian</th><th>Khách hàng</th><th>Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody id="orderTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== KHÁCH HÀNG ===== -->
+    <section id="view-customers" class="view" hidden>
+      <div class="page-head">
+        <h2>Khách hàng</h2>
+        <div class="head-actions">
+          <button id="importCustomersBtn" class="btn btn-outline" type="button">⇪ Import file</button>
+          <button id="addCustomerBtn" class="btn btn-primary" type="button">+ Khách hàng</button>
+        </div>
+      </div>
+      <div class="stat-grid stat-grid-2">
+        <div class="stat-card"><span class="stat-label">Tổng công nợ</span><b id="totalDebt">0</b><span class="stat-sub" id="totalDebtSub"></span></div>
+        <div class="stat-card"><span class="stat-label">Khách đang nợ</span><b id="debtCustomerCount">0</b><span class="stat-sub">khách hàng</span></div>
+      </div>
+      <div class="toolbar"><input id="customerSearch" type="search" placeholder="Tìm theo mã, tên, số điện thoại…" autocomplete="off"></div>
+      <div id="bulkBarCustomers" class="bulk-bar" hidden>
+        <span id="bulkCustomersText"></span>
+        <button id="bulkDeleteCustomers" class="btn btn-danger" type="button">Xóa đã chọn</button>
+      </div>
+      <div class="card table-card">
+        <table class="tbl">
+          <thead><tr><th class="cb"><input id="checkAllCustomers" type="checkbox"></th><th>Mã khách hàng</th><th>Tên khách hàng</th><th>Điện thoại</th><th>Nợ hiện tại</th><th>Tổng bán</th><th></th></tr></thead>
+          <tbody id="customerTable"></tbody>
+        </table>
+      </div>
+      <input id="customerFileInput" type="file" accept=".xlsx,.xls,.csv" hidden>
+    </section>
+
+    <!-- ===== NHÂN VIÊN ===== -->
+    <section id="view-employees" class="view" hidden>
+      <div class="page-head">
+        <h2>Nhân viên</h2>
+        <div class="head-actions"><button id="addEmployeeBtn" class="btn btn-primary" type="button">+ Nhân viên</button></div>
+      </div>
+      <div class="card table-card">
+        <table class="tbl">
+          <thead><tr><th>Tên đăng nhập</th><th>Tên nhân viên</th><th>Vai trò</th><th>Quyền</th><th></th></tr></thead>
+          <tbody id="employeeTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== SỔ QUỸ ===== -->
+    <section id="view-cashbook" class="view" hidden>
+      <div class="page-head">
+        <h2>Sổ quỹ</h2>
+        <div class="head-actions">
+          <button id="addReceiptBtn" class="btn btn-primary" type="button">+ Phiếu thu</button>
+          <button id="addPaymentBtn" class="btn btn-danger" type="button">+ Phiếu chi</button>
+        </div>
+      </div>
+      <div class="stat-grid stat-grid-4">
+        <div class="stat-card"><span class="stat-label">Quỹ đầu ngày</span><b id="cashOpening">0</b><span class="stat-sub" id="cashOpeningDate"></span></div>
+        <div class="stat-card"><span class="stat-label">Tổng thu trong ngày</span><b id="cashIn">0</b><span class="stat-sub">bán hàng + thu nợ + thu khác</span></div>
+        <div class="stat-card"><span class="stat-label">Tổng chi trong ngày</span><b id="cashOut">0</b><span class="stat-sub">chi mua hàng + chi khác</span></div>
+        <div class="stat-card"><span class="stat-label">Tiền mặt trong ngày</span><b id="cashOnHand">0</b><span class="stat-sub">tiền mặt bán ra + thu nợ + khác</span></div>
+      </div>
+      <div class="toolbar">
+        <input id="cashDate" type="date">
+        <span class="muted">Phiếu thu / chi trong ngày đã chọn</span>
+      </div>
+      <div class="card table-card">
+        <table class="tbl">
+          <thead><tr><th>Mã phiếu</th><th>Thời gian</th><th>Loại thu chi</th><th>Người nộp/nhận</th><th>Giá trị</th><th></th></tr></thead>
+          <tbody id="cashTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== IN ẤN ===== -->
+    <section id="view-print" class="view" hidden>
+      <div class="page-head"><h2>In ấn</h2></div>
+      <div class="print-grid">
+        <div class="card">
+          <h3>Thông tin cửa hàng</h3>
+          <label>Tên cửa hàng<input id="setStoreName" type="text"></label>
+          <label>Địa chỉ<input id="setStoreAddress" type="text"></label>
+          <label>Điện thoại<input id="setStorePhone" type="text"></label>
+          <label>Logo cửa hàng
+            <span class="file-row"><input id="setStoreLogo" type="file" accept="image/*" hidden><button id="uploadLogoBtn" class="btn btn-outline" type="button">Tải lên logo</button><img id="storeLogoPreview" class="logo-preview" alt="" hidden></span>
+          </label>
+          <label>Ghi chú cuối hóa đơn<textarea id="setReceiptFooter" rows="2"></textarea></label>
+          <label>Cỡ chữ hóa đơn (px)
+            <select id="setReceiptFontSize"><option value="11">11</option><option value="12" selected>12</option><option value="13">13</option><option value="14">14</option></select>
+          </label>
+          <label class="check"><input id="setShowLogo" type="checkbox" checked> In logo trên hóa đơn</label>
+          <label class="check"><input id="setShowAddress" type="checkbox" checked> In địa chỉ &amp; điện thoại</label>
+          <button id="savePrintSettings" class="btn btn-primary" type="button">Lưu cài đặt in</button>
+        </div>
+        <div class="card">
+          <h3>Xem trước mẫu in (khổ 80mm)</h3>
+          <div id="receiptPreview" class="receipt-preview"></div>
+          <button id="printTestBtn" class="btn btn-outline" type="button">In thử</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== BÁN HÀNG (POS) ===== -->
+    <section id="view-pos" class="view pos-view" hidden>
+      <div class="pos-layout">
+        <div class="pos-products">
+          <div class="pos-search">
+            <input id="posSearch" type="search" placeholder="Tên, mã hàng, mã vạch…" autocomplete="off">
+            <select id="posCategoryFilter"><option value="">Tất cả nhóm</option></select>
+          </div>
+          <div class="pos-customer-row">
+            <span>👤 <b id="posCustomerName">Khách lẻ</b></span>
+            <button id="posChooseCustomer" class="btn btn-outline btn-sm" type="button">Chọn khách</button>
+            <span class="muted">Bảng giá chung</span>
+          </div>
+          <div id="posGrid" class="pos-grid"></div>
+        </div>
+        <div class="pos-cart card">
+          <h3>Hóa đơn <span id="posOrderCode" class="muted"></span></h3>
+          <div id="posLines" class="pos-lines"></div>
+          <div class="pos-summary">
+            <div class="row"><span>Tạm tính</span><b id="posSubtotal">0</b></div>
+            <div class="row"><span>Giảm giá hóa đơn</span><span><input id="posDiscountValue" type="number" min="0" value="0" class="mini-input"><select id="posDiscountType" class="mini-input"><option value="amount">đ</option><option value="percent">%</option></select></span></div>
+            <div class="row"><span>Thu khác (ship)</span><input id="posShipping" type="number" min="0" value="0" class="mini-input"></div>
+            <div class="row total"><span>Tổng tiền</span><b id="posTotal">0</b></div>
+            <div class="row"><span>Thanh toán</span><select id="posPayment" class="mini-input"><option value="cash">Tiền mặt</option><option value="transfer">Chuyển khoản</option><option value="debt">Ghi nợ</option></select></div>
+            <div class="row"><span>Khách đưa</span><input id="posPaid" type="number" min="0" value="0" class="mini-input"></div>
+            <div class="row"><span>Tiền thừa</span><b id="posChange">0</b></div>
+          </div>
+          <div class="pos-actions">
+            <button id="posSave" class="btn btn-primary" type="button">LƯU</button>
+            <button id="posSavePrint" class="btn btn-pos" type="button">LƯU &amp; IN</button>
+            <button id="posClear" class="btn btn-ghost" type="button">Xóa</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Bottom nav (điện thoại) -->
+  <nav class="bottomnav" id="bottomnav">
+    <button class="bn-tab active" data-view="dashboard" type="button">📊<span>Tổng quan</span></button>
+    <button class="bn-tab" data-view="products" type="button">📦<span>Hàng hóa</span></button>
+    <button class="bn-tab bn-pos" data-view="pos" type="button">🛒<span>Bán hàng</span></button>
+    <button class="bn-tab" data-view="orders" type="button">🧾<span>Đơn hàng</span></button>
+    <button class="bn-tab" data-view="customers" type="button">👥<span>Khách hàng</span></button>
+    <button class="bn-tab" data-view="more" type="button">☰<span>Khác</span></button>
+  </nav>
+</div>
+
+<!-- ============ MODAL DÙNG CHUNG ============ -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-card" id="modalCard"></div>
+</div>
+
+<!-- ============ HÓA ĐƠN IN 80mm (chỉ hiện khi in) ============ -->
+<div id="receiptPrint" hidden></div>
+
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="js/pos.js"></script>
+<script>
+  // Đăng ký service worker để dùng như app cài đặt được (PWA).
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+  }
+</script>
+</body>
+</html>
