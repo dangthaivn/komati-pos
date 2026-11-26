@@ -50,12 +50,14 @@ $("#loginForm").addEventListener("submit", async (e) => {
   err.hidden = true;
   enterApp();
 });
-// Nút con mắt: hiện / ẩn mật khẩu đã gõ.
+// Nút con mắt: hiện / ẩn mật khẩu đã gõ. Icon nét đơn giản như ảnh Sếp gửi.
+const EYE_OPEN = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><line x1="4" y1="4" x2="20" y2="20"/></svg>';
 $("#togglePass").addEventListener("click", () => {
   const input = $("#loginPass");
   const show = input.type === "password";
   input.type = show ? "text" : "password";
-  $("#togglePass").textContent = show ? "🙈" : "👁️";
+  $("#togglePass").innerHTML = show ? EYE_OFF : EYE_OPEN;
   $("#togglePass").setAttribute("aria-label", show ? "Ẩn mật khẩu" : "Hiện mật khẩu");
   input.focus();
 });
