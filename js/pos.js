@@ -134,7 +134,7 @@ $("#posCustSearch").addEventListener("input", (e) => {
   const box = $("#posCustResults");
   if (!q) { box.hidden = true; box.innerHTML = ""; return; }
   const db = DB.get();
-  const list = db.customers.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q)).slice(0, 6);
+  const list = db.customers.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q) || (c.code || "").toLowerCase().includes(q)).slice(0, 6);
   box.innerHTML = list.map((c) => `<button type="button" data-cid="${c.id}">${esc(c.name)}${c.phone ? " — " + esc(c.phone) : ""}${(c.debt || 0) > 0 ? ` <span style="color:var(--red)">(nợ ${fmt(c.debt)}đ)</span>` : ""}</button>`).join("")
     + `<button type="button" class="add-new" data-add="${esc(e.target.value.trim())}">＋ Thêm khách mới "${esc(e.target.value.trim())}"</button>`;
   box.hidden = false;

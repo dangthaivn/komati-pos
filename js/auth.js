@@ -91,6 +91,13 @@ const Auth = (() => {
   async function login(username, password) {
     username = (username || "").trim();
     if (!username || !password) return { ok: false, error: "Vui lòng nhập tên đăng nhập và mật khẩu." };
+    // App đã nối Firebase nhưng thư viện Firebase chưa tải xong (mất mạng
+    // thoáng qua): báo rõ để biết tải lại trang, thay vì lỗi chung chung.
+    if (window.KOMATI_FIREBASE_CONFIG && window.KOMATI_FIREBASE_CONFIG.apiKey
+      && window.KOMATI_FIREBASE_CONFIG.apiKey !== "PASTE_API_KEY_HERE"
+      && typeof firebase === "undefined") {
+      return { ok: false, error: "Không tải được dịch vụ đăng nhập. Kiểm tra mạng rồi tải lại trang." };
+    }
     try {
       const res = DB.isFirebase() ? await loginFirebase(username, password) : await loginDemo(username, password);
       if (!res.ok) return res;

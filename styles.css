@@ -195,6 +195,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .mini-input { width: 90px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; }
 select.mini-input { width: auto; }
 .pos-summary .row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+.pos-summary .row > span:first-child { white-space: nowrap; }
 .pos-summary .row.total { font-size: 17px; font-weight: 800; border-bottom: none; }
 .pos-summary .row.total b { color: var(--blue); font-size: 20px; }
 .pos-actions { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 12px; }
