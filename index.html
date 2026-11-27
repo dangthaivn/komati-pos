@@ -120,16 +120,23 @@
       <div class="page-head">
         <h2>Hàng hóa</h2>
         <div class="head-actions">
-          <button id="categoryManageBtn" class="btn btn-outline" type="button">🗂 Nhóm hàng</button>
-          <button id="stockCheckBtn" class="btn btn-outline" type="button">📋 Kiểm kho</button>
-          <button id="importProductsBtn" class="btn btn-outline" type="button">⇪ Import file</button>
-          <button id="templateProductsBtn" class="btn btn-outline" type="button">⇩ File excel mẫu</button>
-          <button id="addProductBtn" class="btn btn-primary" type="button">+ Tạo mới</button>
+          <div class="prod-btn-row">
+            <button id="categoryManageBtn" class="btn btn-outline" type="button">🗂 Nhóm hàng</button>
+            <button id="stockCheckBtn" class="btn btn-outline" type="button">📋 Kiểm kho</button>
+            <button id="importProductsBtn" class="btn btn-outline" type="button">⇪ Import file</button>
+            <button id="templateProductsBtn" class="btn btn-outline" type="button">⇩ Tải file hàng hóa</button>
+          </div>
+          <div class="prod-create-row">
+            <button id="addProductBtn" class="btn btn-primary" type="button">+ Tạo mới</button>
+            <select id="productCategoryFilter"><option value="">Tất cả nhóm hàng</option></select>
+          </div>
         </div>
       </div>
       <div class="toolbar">
-        <input id="productSearch" type="search" placeholder="Tìm theo mã, tên hàng…" autocomplete="off">
-        <select id="productCategoryFilter"><option value="">Tất cả nhóm hàng</option></select>
+        <span class="prod-search-wrap">
+          <input id="productSearch" type="search" placeholder="Tìm theo mã, tên hàng…" autocomplete="off">
+          <button id="productScanBtn" class="scan-btn" type="button" title="Quét mã vạch"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABfCAYAAAAXtMJAAAAHM0lEQVR4nO2dTYgcRRTHfz07u/k2LkkwJEERQby4SETBkIMkJAcRBfEiGoQcPOXgMSAoQiRXTx704MXgJSh6VwKKYQ8GEaJeQrx4kAUlIW6ymZkdD69eura6+mOmd7aSnfeDZnbrX/1R73V1VddXZ8A+4BngPPA+0KM5A+D7EeJvRo4BMyPuMwQy4ArAcRcw7nbGHbTTIhEPGprWM7Sz3fEOsBfoI3d+f4RtBckBp4KLmgY0racQG6wwmu3uuN+HYXzv9d3voruY7kSSen+iaV1krS3G2VploR5w0l1MNpm03pdoWk8iNhj35j2fuT9CFoC/3Yliul7EKrDUOjkPNvuQR1KVnYbAI8CvLqwHzAJPQtxDe0a4gFFrAJuJUdK+h9y+A/f7OcQdcADxXMf9Vm3TTp191IYHiNi6rOC8V0BQnrUMoYl9fHv69Kep6ng/0jUHJMYckJgOUic10tDvUHyDXU1xJVNCaNtuB7jg/rmL5IYO9miaBGrXPmJrcLZfYG3d9BzyljZNbTuTpovY9Bxrbb3QBX4HTgOvIi8M3yKvyuqA2MuWX6dt8jKm8cvittVTnq/OFqr3ENs+7cK+QWxvpEQ9NkP+3B+QFxZbkV6brcF+LyCNdduAnyO6HmcG+Al4y4W9AnyMPAezlnr4iNSwd5E7DeAL4Ah520sbPdbucwd4FriNNLZdjuiH3S+IjfU4q8BAEzFwW0gGPEUxa3VrdJ+/vL93A4+vsx6y2/v7sUj8trrPkDzt3UhcXwcx+pqaUJOC9jbFO3xYo0N+16x4YX13AT3yu2FcfTY4n4b57zUrLr7m6jZ6WQ5QhhSrmXeooYkDtEVvVH1I3hIYxvW3NrpPVfyhF2dcPZbGMOeHcWoLcavvJ8YckBhzQGLMAYkxByTGHJAYc0BizAGJMQckxhyQGHNAYswBiTEHJMYckBhzQGLMAYkxByTGHJAYc0BizAGJMQckxhyQGHNAYpqMCyqM5mqor1KcZzwM4rfRw3NqWFX8Nno4xic2hzp2TZU0ccCOSFhWo0Oeu/xRc10XvsULa6srW7w4/r7hIK62uo8/Oi82QK3MNtGTxRgCv1FMcK9GB/F+B7juhd0ArrF2Isi4etng3Bte2HVgP/ld3EZX4+qd/yjwD/n4z567Np8VbJrvxHgZWWcJWpSl/vD0smn36zlBY9zjjXK+jTqXDhqeI88FdcfzuTci3ZYbSEemxn8RWTmrbBi2sX6ojb8DLmXA88i6b7UltrGu/Acc6wLziPFvIdUqK7Uni9aYdgLzXfKXhZ3JLmn60Gr7ahf4AZm/+jpWBmwEauOLiO2NlGgtqOpFYi4SpgvVlek+urifos0JMT22dkWdHqIT+UDKtLCa3VYP0WUHMooTB309xoavy2HvHAF1BpkFPqDo2Y+AmxU65G+H14BPkZxyFylrniNvu1Ed5NX+DeQ52Qn2D/WwrNKwL4FfXNg7wBPkrZpt9JitesCH7vch4L0KfSy2E1/U75DTd5To/nbFxZ0BXiJv8g11kDUryvYv08PttBf/ygT0cNP3p0Ml+nYqaNIaehNZksBnUKNrnBnydUUHyDLJGfISMhPoAMvI3eJP1C7TyyZqL3thSy7cn4g9rh6rHd4mLwsHFO90X4/SpD9glmJisxodcgP659DCe65E73jHqtNj55yl2LavYast9ZgD/Fn1sUK4djWyje6StLVGA6xPODHmgMSYAxJjDkiMOSAx5oDEmAMSYw5IjDkgMeaAxJgD1qItmBtGk8Y4fxljZVijQ97C6DdI6ZKT2trZRo9dp8ZR9AN1/mK0VXq4ZnZs/9g5odjzF+pR6hyQIR0NITM1OuQtg3u9sG0UW0/b6uH5/KbxvZH4dfoNcufH9PCc/vDOMF5tl2bXixDLej3gk8iBb9XokI8o/sMLuwp8htxRWUu9rEfsqhd2AVlaWTuBynTtS7iMLFusvXf+/rHHtZ8bb7lrK9NDCo7R9aObdERvZiaVdu0vKPQtzCOeW0LGu59w4X7Hx1ywhR0yoe5vYYfKeuvhFnaoNNE1DeEjOba/v4UTNMp0/T2B2HgJsfk8wFEke+r3Db8GdiFemuacsF7oKvC7ENv6tj4K8hEBLeX1WXnQ29loh9rwIGvnnA1wH3AIe/F7yLQcf2djfNSG+4l8eVWrWz5+zchYPzIiX6yqmgFoTJ6OGT8x5oDEmAMSU9YW1CUvjKtaBwc1+jSg9fwqfUhFu1tsQGnsozxlTPMX90ZJ+1YittY5YuGj6G3gX8pzwNDt8xVSt63LKZuRDHmjnQVeI76gh8Yb4podYtQNv67aLgFnqc+Gmw1tpjmL2GBc+/UA/iR/RVbhboNt2cVddBc1TY8iTesiYoNlmtks+gh6E/gRKVD1wGUdED4dt880fxC6j9hgjtGeAPrYvwhwkjw7jJJ9VpEvxR1xB52m5gtN6xHEBuGsnyaPniFw+H9ZZA4A2PdqcAAAAABJRU5ErkJggg==" class="scan-icon" alt="Quét mã vạch"></button>
+        </span>
         <span id="productCount" class="muted"></span>
       </div>
       <div id="bulkBarProducts" class="bulk-bar" hidden>
@@ -176,6 +183,7 @@
         <h2>Khách hàng</h2>
         <div class="head-actions">
           <button id="importCustomersBtn" class="btn btn-outline" type="button">⇪ Import file</button>
+          <button id="exportCustomersBtn" class="btn btn-outline" type="button">⇩ Tải file khách hàng</button>
           <button id="addCustomerBtn" class="btn btn-primary" type="button">+ Khách hàng</button>
         </div>
       </div>
@@ -194,7 +202,6 @@
           <tbody id="customerTable"></tbody>
         </table>
       </div>
-      <input id="customerFileInput" type="file" accept=".xlsx,.xls,.csv" hidden>
     </section>
 
     <!-- ===== NHÂN VIÊN ===== -->

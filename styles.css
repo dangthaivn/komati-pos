@@ -95,6 +95,12 @@ main { max-width: 1720px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .toolbar input[type=search], .toolbar select { padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; background: #fff; }
 .toolbar input[type=search] { flex: 1; min-width: 200px; }
+/* Đầu tab Hàng hóa: 2 nhóm nút (hàng nút + Tạo mới/lọc nhóm) và ô tìm kiếm có nút quét.
+   display:contents để trên máy tính các nút vẫn xếp 1 hàng như cũ trong .head-actions. */
+.prod-btn-row, .prod-create-row { display: contents; }
+.head-actions select { padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; background: #fff; }
+.prod-search-wrap { position: relative; flex: 1; display: flex; }
+.prod-search-wrap input[type=search] { flex: 1; min-width: 0; padding-right: 44px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .card-head h3 { min-width: 0; }
@@ -342,4 +348,10 @@ select.mini-input { width: auto; }
   .bar-col { flex: 1 1 0; min-width: 0; }
   /* Điện thoại: ẩn Top 10 và Hoạt động gần đây cho gọn màn hình tổng quan. */
   .dash-hide-mobile { display: none; }
+  /* Điện thoại: đầu tab Hàng hóa — 4 nút thành 2 hàng đều; Tạo mới + lọc nhóm 1 hàng; tìm kiếm + quét mã 1 hàng. */
+  #view-products .page-head { display: block; }
+  #view-products .head-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  #view-products .head-actions .btn, #view-products .head-actions select { width: 100%; }
+  #view-products .toolbar { display: block; }
+  #view-products #productCount { display: block; margin-top: 6px; }
 }

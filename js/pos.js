@@ -411,14 +411,16 @@ function stopScan() {
 }
 // Dừng camera dù cửa sổ đóng bằng cách nào (nút Đóng, bấm nền, phím Esc).
 new MutationObserver(() => { if ($("#modal").hidden) stopScan(); }).observe($("#modal"), { attributes: true, attributeFilter: ["hidden"] });
-function openScanModal() {
+// onCode: hàm xử lý mã quét được (mặc định thêm vào hóa đơn ở tab Bán hàng);
+// hint: dòng hướng dẫn trong cửa sổ quét.
+function openScanModal(onCode, hint) {
   if (typeof Html5Qrcode === "undefined") {
     notify("Không tải được thư viện quét mã. Kiểm tra mạng rồi thử lại.");
     return;
   }
   scanDone = false;
   const card = openModal(`<h3>Quét mã vạch</h3>
-    <p class="muted">Đưa mã vạch trên bao bì vào khung hình, app sẽ tự nhận mã và thêm hàng vào hóa đơn.</p>
+    <p class="muted">${esc(hint || "Đưa mã vạch trên bao bì vào khung hình, app sẽ tự nhận mã và thêm hàng vào hóa đơn.")}</p>
     <div id="scanReader" style="width:100%;border-radius:8px;overflow:hidden;background:#000"></div>
     <p class="muted" id="scanStatus">Đang mở camera…</p>
     <div class="modal-actions"><button type="button" class="btn btn-outline" id="scanClose">Đóng</button></div>`);
@@ -436,7 +438,7 @@ function openScanModal() {
       if (scanDone) return;
       scanDone = true;
       stopScan(); closeModal();
-      handleScannedCode(code);
+      (onCode || handleScannedCode)(code);
     },
     () => { /* quét chưa ra mã — bỏ qua, vẫn quét tiếp */ }
   ).catch((err) => {
@@ -460,4 +462,4 @@ function handleScannedCode(code) {
   }
   if (addProductToCart(p) && isMobilePos()) setPosMobileView("bill");
 }
-$("#posScanBtn").addEventListener("click", openScanModal);
+$("#posScanBtn").addEventListener("click", () => openScanModal());

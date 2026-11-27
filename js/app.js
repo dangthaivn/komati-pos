@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v33";
+const APP_VERSION = "v34";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -418,6 +418,15 @@ function updateBulkBar(kind, set, label) {
   if (txt) txt.textContent = `Đã chọn ${set.size} ${label}`;
 }
 $("#productSearch").addEventListener("input", () => renderProducts());
+// Quét mã vạch ở ô tìm kiếm Hàng hóa: quét xong điền mã vào ô tìm kiếm và lọc
+// ra mặt hàng đó (không thêm vào hóa đơn như ở tab Bán hàng).
+function handleProductScannedCode(code) {
+  $("#productSearch").value = code;
+  renderProducts();
+  const found = DB.get().products.some((p) => p.code.toLowerCase() === String(code).toLowerCase());
+  if (!found) notify(`Không tìm thấy mặt hàng có mã ${code}. Kiểm tra lại Mã hàng của sản phẩm.`);
+}
+$("#productScanBtn").addEventListener("click", () => openScanModal(handleProductScannedCode, "Đưa mã vạch trên bao bì vào khung hình, app sẽ tìm mặt hàng có mã đó."));
 $("#productCategoryFilter").addEventListener("change", () => renderProducts());
 $("#productTable").addEventListener("click", async (e) => {
   const cb = e.target.closest(".row-check");
@@ -733,9 +742,32 @@ function downloadTemplateExcel() {
     notify("Không tải được file mẫu. Kiểm tra mạng rồi thử lại.");
   }
 }
-$("#templateProductsBtn").addEventListener("click", downloadTemplateExcel);
+// Tải file hàng hóa: xuất TẤT CẢ mặt hàng hiện tại theo đúng khung 9 cột của
+// file mẫu (để sao lưu) — khác với "File excel mẫu" trong cửa sổ Import vốn
+// tải file mẫu trống. Có sẵn XLSX thì xuất .xlsx, không thì xuất .csv.
+function productExportRows() {
+  const db = DB.get();
+  const catName = (id) => (db.categories.find((c) => c.id === id) || {}).name || "";
+  const rows = [["Mã hàng", "Tên hàng hóa", "Đơn vị tính", "Nhóm hàng", "Link ảnh sản phẩm", "Giá vốn", "Giá bán", "Tồn kho", "Hạn sử dụng"]];
+  for (const p of db.products) rows.push([p.code, p.name, p.unit, catName(p.categoryId), p.image || "", p.costPrice || 0, p.price, p.stock || 0, p.expiryDate || ""]);
+  return rows;
+}
+function downloadProductsExcel() {
+  const rows = productExportRows();
+  const fname = "hang-hoa-" + todayStr() + ".xlsx";
+  if (xlsxAvailable()) {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "HangHoa");
+    XLSX.writeFile(wb, fname);
+  } else {
+    const csv = rows.map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    downloadBlob(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }), fname.replace(/\.xlsx$/, ".csv"));
+  }
+}
+$("#templateProductsBtn").addEventListener("click", downloadProductsExcel);
 
-// Cửa sổ Import file: chọn file, tải file hàng hóa hiện tại, xem kết quả.
+// Cửa sổ Import file: chọn file, tải file excel mẫu, xem kết quả.
 function openImportModal() {
   openModal(`<h3>Nhập hàng hóa từ Excel</h3>
     <p class="muted">Cột có dấu * là bắt buộc. Trùng Mã hàng sẽ cập nhật thay vì tạo mới.</p>
@@ -1160,31 +1192,126 @@ function openDebtPayment(c) {
     closeModal(); renderCustomers();
   };
 }
-$("#importCustomersBtn").addEventListener("click", () => $("#customerFileInput").click());
-$("#customerFileInput").addEventListener("change", async (e) => {
-  const f = e.target.files[0]; if (!f) return;
+// Tải file mẫu nhập khách hàng (lưu base64 trong js/template.js như file mẫu hàng hóa).
+function downloadCustomerTemplateExcel() {
+  try {
+    const bin = atob(CUSTOMER_TEMPLATE_XLSX_B64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    downloadBlob(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "file-mau-khach-hang.xlsx");
+  } catch (err) {
+    notify("Không tải được file mẫu. Kiểm tra mạng rồi thử lại.");
+  }
+}
+// Tải file khách hàng: xuất TẤT CẢ khách hàng hiện tại (để sao lưu) theo đúng
+// khung cột của file mẫu, cộng thêm Công nợ và Tổng mua hàng. Nhập lại file
+// này thì 2 cột thêm đó được bỏ qua (chỉ nhập thông tin khách hàng).
+function customerExportRows() {
   const db = DB.get();
+  const rows = [["Mã khách hàng", "Tên khách hàng", "Số điện thoại", "Địa chỉ", "Ghi chú", "Công nợ", "Tổng mua hàng"]];
+  for (const c of db.customers) rows.push([c.code, c.name, c.phone || "", c.address || "", c.note || "", c.debt || 0, c.totalBought || 0]);
+  return rows;
+}
+function downloadCustomersExcel() {
+  const rows = customerExportRows();
+  const fname = "khach-hang-" + todayStr() + ".xlsx";
+  if (xlsxAvailable()) {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "KhachHang");
+    XLSX.writeFile(wb, fname);
+  } else {
+    const csv = rows.map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    downloadBlob(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }), fname.replace(/\.xlsx$/, ".csv"));
+  }
+}
+$("#exportCustomersBtn").addEventListener("click", downloadCustomersExcel);
+
+// Cửa sổ Import file khách hàng — giống cửa sổ Import bên tab Hàng hóa.
+function openCustomerImportModal() {
+  openModal(`<h3>Nhập khách hàng từ Excel</h3>
+    <p class="muted">Cột có dấu * là bắt buộc. Trùng Mã khách hàng sẽ cập nhật thay vì tạo mới.</p>
+    <input type="file" id="impCustFile" accept=".xlsx,.xls,.csv" style="display:none">
+    <div class="modal-actions" style="justify-content:flex-start">
+      <button id="impCustPickBtn" class="btn btn-primary" type="button">📂 Chọn file để nhập</button>
+      <button id="impCustExportBtn" class="btn btn-outline" type="button">⬇ File excel mẫu</button>
+      <button class="btn btn-ghost" type="button" onclick="closeModal()">Đóng</button>
+    </div>
+    <div id="impCustResult" class="muted" style="margin-top:12px"></div>`);
+  $("#impCustPickBtn").addEventListener("click", () => $("#impCustFile").click());
+  $("#impCustExportBtn").addEventListener("click", downloadCustomerTemplateExcel);
+  $("#impCustFile").addEventListener("change", handleCustomerImport);
+}
+$("#importCustomersBtn").addEventListener("click", openCustomerImportModal);
+
+async function handleCustomerImport(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const res = $("#impCustResult");
+  const pickBtn = $("#impCustPickBtn");
+  if (pickBtn) pickBtn.disabled = true;
+  const done = () => { if (pickBtn) pickBtn.disabled = false; };
+  const fail = (msg) => { if (res) res.innerHTML = `<span style="color:var(--red)">File lỗi: ${esc(msg)}</span>`; e.target.value = ""; done(); };
+  // Báo ngay là đã nhận file và đang nhập, để người dùng biết app đang làm việc.
+  if (res) res.innerHTML = "⏳ Đang nhập…";
   let rows = [];
   try {
-    if (xlsxAvailable() && /\.xlsx?$/i.test(f.name)) {
+    if (/\.xlsx?$/i.test(f.name)) {
+      if (!xlsxAvailable()) { fail("không tải được thư viện đọc file Excel. Kiểm tra mạng rồi thử lại."); return; }
       const buf = await f.arrayBuffer();
       const wb = XLSX.read(buf);
       rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+    } else if (/\.csv$/i.test(f.name)) {
+      rows = parseCsvText(await f.text());
     } else {
-      const text = await f.text();
-      rows = text.split(/\r?\n/).map((l) => l.split(",").map((s) => s.replace(/^"|"$/g, "").trim()));
+      fail("định dạng file không hỗ trợ. Chỉ nhận file .xlsx hoặc .csv theo mẫu."); return;
     }
-  } catch (err) { notify("Không đọc được file."); e.target.value = ""; return; }
-  let added = 0;
+  } catch (err) { fail("không đọc được file. Hãy dùng file Excel theo mẫu của KOMATI."); return; }
+  if (!rows.length) { fail("file trống, không có dữ liệu."); return; }
+  const headers = rows[0].map((h) => String(h ?? ""));
+  // Đọc theo TÊN cột nên file có thứ tự cột nào cũng nhập đúng.
+  const col = {
+    code: findCol(headers, ["Mã khách hàng", "Mã khách", "Mã"]),
+    name: findCol(headers, ["Tên khách hàng", "Tên khách", "Tên"]),
+    phone: findCol(headers, ["Số điện thoại", "Điện thoại", "SĐT", "SDT"]),
+    address: findCol(headers, ["Địa chỉ"]),
+    note: findCol(headers, ["Ghi chú", "Ghi chu"]),
+  };
+  if (col.name < 0) { fail("không tìm thấy cột Tên khách hàng trong file. Kiểm tra lại tiêu đề cột."); return; }
+  const db = DB.get();
+  let added = 0, updated = 0, skipped = 0;
+  const skipReasons = [];
   for (let i = 1; i < rows.length; i++) {
-    const r = rows[i]; if (!r || !r[0]) continue;
-    await DB.put("customers", { id: DB.uid("kh"), code: String(r[1] || "").trim() || ("KH" + String(1000000 + db.customers.length + 1)), name: String(r[0]).trim(), phone: String(r[2] || "").trim(), address: String(r[3] || "").trim(), note: "", debt: moneyInput(r[4]), totalBought: 0 });
-    added++;
+    const r = rows[i]; if (!r) continue;
+    const val = (idx) => idx >= 0 ? String(r[idx] ?? "").trim() : "";
+    // Các cột có dấu * trong file mẫu là bắt buộc: Mã khách hàng, Tên khách
+    // hàng. Dòng thiếu 1 trong 2 cột này thì bỏ qua và ghi rõ lý do.
+    const missing = [];
+    const code = val(col.code); if (!code) missing.push("Mã khách hàng");
+    const name = val(col.name); if (!name) missing.push("Tên khách hàng");
+    if (missing.length) { skipped++; skipReasons.push(`Dòng ${i + 1}: thiếu ${missing.join(", ")}`); continue; }
+    const phone = val(col.phone);
+    const address = val(col.address);
+    const note = val(col.note);
+    const existing = db.customers.find((c) => c.code.toLowerCase() === code.toLowerCase());
+    // Trùng SĐT với khách khác thì bỏ qua — giống luật ở form thêm khách.
+    if (phone) {
+      const dup = findCustomerByPhone(db, phone);
+      if (dup && dup.id !== existing?.id) { skipped++; skipReasons.push(`Dòng ${i + 1}: SĐT ${phone} đã có khách hàng "${dup.name}"`); continue; }
+    }
+    if (existing) {
+      existing.name = name; existing.phone = phone; existing.address = address; existing.note = note;
+      await DB.put("customers", existing);
+      updated++;
+    } else {
+      await DB.put("customers", { id: DB.uid("kh"), code, name, phone, address, note, debt: 0, totalBought: 0 });
+      added++;
+    }
   }
   e.target.value = "";
-  notify(`Đã tải lên ${added} khách hàng.`);
+  if (res) res.innerHTML = `Đã nhập xong: <b>${added} khách hàng mới</b>, <b>${updated} khách hàng cập nhật</b>${skipped ? `, ${skipped} dòng bỏ qua` : ""}.${skipped ? `<br><span style="color:var(--red)">${skipReasons.slice(0, 10).map(esc).join("<br>")}${skipReasons.length > 10 ? `<br>…và ${skipReasons.length - 10} dòng khác` : ""}</span>` : ""}`;
   renderCustomers();
-});
+  done();
+}
 
 /* ---------- NHÂN VIÊN ---------- */
 // Tab Nhân viên chỉ dành cho admin (Auth.can("employees") đã chặn nhân
