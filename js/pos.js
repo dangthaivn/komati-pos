@@ -182,10 +182,10 @@ $("#posPayBoxes").addEventListener("click", (e) => {
 function addProductToCart(p) {
   const ex = posCart.find((it) => it.productId === p.id && it.unit === p.unit);
   if (ex) {
-    if (ex.qty + 1 > p.stock) { alert(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); return false; }
+    if (ex.qty + 1 > p.stock) { notify(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); return false; }
     ex.qty = fmtQty(ex.qty + 1);
   } else {
-    if (p.stock < 1) { alert(`"${p.name}" đã hết hàng.`); return false; }
+    if (p.stock < 1) { notify(`"${p.name}" đã hết hàng.`); return false; }
     posCart.push({ productId: p.id, name: p.name, unit: p.unit, qty: 1, price: p.price, costPrice: p.costPrice, discount: 0 });
   }
   renderPosCart();
@@ -210,7 +210,7 @@ $("#posLines").addEventListener("click", (e) => {
     const it = posCart[+q.dataset.i];
     const p = DB.get().products.find((x) => x.id === it.productId);
     it.qty = fmtQty(it.qty + +q.dataset.d);
-    if (it.qty > (p ? p.stock : 99)) { alert(`Chỉ còn ${p ? p.stock : 99} ${p ? p.unit : ""} trong kho.`); it.qty = p ? p.stock : 99; }
+    if (it.qty > (p ? p.stock : 99)) { notify(`Chỉ còn ${p ? p.stock : 99} ${p ? p.unit : ""} trong kho.`); it.qty = p ? p.stock : 99; }
     // Số lượng nhỏ nhất là 0: bấm − ở 1 thì về 0 và giữ dòng hàng lại,
     // bấm − tiếp vẫn là 0, không xóa hàng khỏi hóa đơn.
     if (it.qty < 0) it.qty = 0;
@@ -230,7 +230,7 @@ $("#posLines").addEventListener("change", (e) => {
   const p = DB.get().products.find((x) => x.id === it.productId);
   let v = parseFloat(inp.value);
   if (isNaN(v) || v < 0) v = 0;
-  if (p && v > p.stock) { alert(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); v = p.stock; }
+  if (p && v > p.stock) { notify(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); v = p.stock; }
   it.qty = fmtQty(v);
   if (it.qty === 0) it.discount = 0;
   renderPosCart();
@@ -266,10 +266,10 @@ function openItemDiscountModal(idx) {
     const v = moneyInput($("#itemDiscValue", card).value);
     let disc = 0;
     if (itemDiscType === "percent") {
-      if (v < 0 || v > 100) { alert("Phần trăm giảm phải từ 0 đến 100."); return; }
+      if (v < 0 || v > 100) { notify("Phần trăm giảm phải từ 0 đến 100."); return; }
       disc = Math.round(lineTotal * v / 100);
     } else {
-      if (v < 0 || v > lineTotal) { alert("Số tiền giảm chưa hợp lệ."); return; }
+      if (v < 0 || v > lineTotal) { notify("Số tiền giảm chưa hợp lệ."); return; }
       disc = v;
     }
     it.discount = disc;
@@ -330,29 +330,29 @@ function openPosQuickAddCustomer(prefill) {
     closeModal(); renderPOS();
   };
 }
-$("#posClear").addEventListener("click", () => {
+$("#posClear").addEventListener("click", async () => {
   if (!posCart.length) return;
-  if (confirm("Xóa toàn bộ hóa đơn đang tính?")) { posCart = []; posCustomer = null; posPaidManual = false; renderPOS(); setPosMobileView("pick"); }
+  if (await confirmBox("Xóa hóa đơn", "Xóa toàn bộ hóa đơn đang tính?")) { posCart = []; posCustomer = null; posPaidManual = false; renderPOS(); setPosMobileView("pick"); }
 });
 
 async function saveOrder(printAfter) {
   // Chỉ lưu các dòng có số lượng > 0 (dòng về 0 vẫn nằm trong hóa đơn để
   // Sếp bấm + lại, nhưng không tính vào đơn đã lưu).
   const sell = posCart.filter((it) => it.qty > 0);
-  if (!sell.length) { alert("Chưa có sản phẩm nào trong hóa đơn."); return; }
+  if (!sell.length) { notify("Chưa có sản phẩm nào trong hóa đơn."); return; }
   const db = DB.get();
   const t = posTotals();
   const payment = posPayment;
   const paid = moneyInput($("#posPaid").value);
-  if (payment === "debt" && !posCustomer) { alert("Ghi nợ cần chọn khách hàng trước."); return; }
+  if (payment === "debt" && !posCustomer) { notify("Ghi nợ cần chọn khách hàng trước."); return; }
   if (payment !== "debt" && paid < t.total) {
-    alert(`Khách chưa trả đủ tiền (thiếu ${fmt(t.total - paid)}đ). Chọn "Ghi nợ" nếu cho khách nợ, hoặc nhập đủ số tiền khách đưa.`);
+    notify(`Khách chưa trả đủ tiền (thiếu ${fmt(t.total - paid)}đ). Chọn "Ghi nợ" nếu cho khách nợ, hoặc nhập đủ số tiền khách đưa.`);
     return;
   }
   // Kiểm tra tồn kho lần cuối
   for (const it of sell) {
     const p = db.products.find((x) => x.id === it.productId);
-    if (!p || it.qty > (p.stock || 0)) { alert(`"${it.name}" không đủ tồn kho.`); return; }
+    if (!p || it.qty > (p.stock || 0)) { notify(`"${it.name}" không đủ tồn kho.`); return; }
   }
   const order = {
     id: DB.uid("hd"), code: newOrderCode(), date: todayStr(), time: new Date().toISOString(),
@@ -393,7 +393,7 @@ async function saveOrder(printAfter) {
   $("#posDiscountValue").value = 0; $("#posShipping").value = 0; $("#posPaid").value = 0;
   setPosPayment("cash");
   if (printAfter) printOrder(order);
-  else alert(`Đã lưu hóa đơn ${order.code} — ${fmt(t.total)}đ.`);
+  else notify(`Đã lưu hóa đơn ${order.code} - ${fmt(t.total)}đ`);
   renderPOS();
   setPosMobileView("pick"); // đơn mới: về lại màn hình chọn hàng
 }
@@ -413,7 +413,7 @@ function stopScan() {
 new MutationObserver(() => { if ($("#modal").hidden) stopScan(); }).observe($("#modal"), { attributes: true, attributeFilter: ["hidden"] });
 function openScanModal() {
   if (typeof Html5Qrcode === "undefined") {
-    alert("Không tải được thư viện quét mã. Kiểm tra mạng rồi thử lại.");
+    notify("Không tải được thư viện quét mã. Kiểm tra mạng rồi thử lại.");
     return;
   }
   scanDone = false;
@@ -455,7 +455,7 @@ function handleScannedCode(code) {
     $("#posSearch").value = code;
     renderPOS();
     setPosMobileView("pick");
-    alert(`Không tìm thấy mặt hàng có mã ${code}. Kiểm tra lại Mã hàng của sản phẩm.`);
+    notify(`Không tìm thấy mặt hàng có mã ${code}. Kiểm tra lại Mã hàng của sản phẩm.`);
     return;
   }
   if (addProductToCart(p) && isMobilePos()) setPosMobileView("bill");

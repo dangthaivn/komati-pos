@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v29";
+const APP_VERSION = "v30";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -51,6 +51,22 @@ function confirmBox(title, text, okLabel = "Xóa") {
     $("#cfOk", card).onclick = () => { closeModal(); resolve(true); };
   });
 }
+
+// Thông báo nhỏ giữa màn hình, thay cho alert() của trình duyệt (vừa xấu
+// vừa hiện dòng "dangthaivn.github.io cho biết"). Bấm OK là tắt ngay;
+// không bấm thì tự tắt — tin ngắn 1 giây, tin dài ở lại thêm cho kịp đọc.
+const nativeAlert = window.alert.bind(window);
+let toastTimer = null;
+function notify(msg) {
+  const t = $("#toast"), m = $("#toastMsg");
+  if (!t || !m) { nativeAlert(msg); return; }
+  m.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, Math.max(1000, Math.min(5000, String(msg).length * 40)));
+}
+function hideToast() { const t = $("#toast"); if (t) t.hidden = true; }
+$("#toastOk").addEventListener("click", hideToast);
 
 /* ---------- Khởi động ---------- */
 let currentView = "dashboard";
@@ -127,7 +143,7 @@ function applyPermissions() {
 function showView(name) {
   if (name === "more") { openMoreMenu(); return; }
   const permMap = { dashboard: "dashboard", products: "products", orders: "orders", customers: "customers", employees: "employees", cashbook: "cashbook", print: "print", pos: "pos" };
-  if (permMap[name] && !Auth.can(permMap[name])) { alert("Tài khoản này không có quyền xem mục này."); return; }
+  if (permMap[name] && !Auth.can(permMap[name])) { notify("Tài khoản này không có quyền xem mục này."); return; }
   currentView = name;
   $$(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
   $$(".nav-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
@@ -549,8 +565,8 @@ function openProductForm(p) {
     const code = $("#pfLotCode", card).value.trim();
     const exp = $("#pfLotExp", card).value || null;
     const qty = parseFloat($("#pfLotQty", card).value) || 0;
-    if (!code) { alert("Nhập mã lô (VD: Lô 26/12)."); return; }
-    if (qty <= 0) { alert("Nhập số lượng lô lớn hơn 0."); return; }
+    if (!code) { notify("Nhập mã lô (VD: Lô 26/12)."); return; }
+    if (qty <= 0) { notify("Nhập số lượng lô lớn hơn 0."); return; }
     formLots.push({ id: DB.uid("lo"), code, expiryDate: exp, qty });
     $("#pfLotCode", card).value = ""; $("#pfLotExp", card).value = ""; $("#pfLotQty", card).value = "";
     drawLots();
@@ -601,7 +617,7 @@ function openProductForm(p) {
       do { code = "SP" + String(n).padStart(6, "0"); n++; } while (db.products.some((x) => x.code === code));
     }
     const dup = findProductByCode(db, code, p?.id);
-    if (dup) { showCodeDup(); alert("Mã hàng này đã tồn tại. Mở mặt hàng đã lưu để sửa thay vì tạo mới."); return; }
+    if (dup) { showCodeDup(); notify("Mã hàng này đã tồn tại. Mở mặt hàng đã lưu để sửa thay vì tạo mới."); return; }
     const lots = formLots.map((l) => ({ ...l }));
     const stock = lots.length ? lots.reduce((s, l) => s + (parseFloat(l.qty) || 0), 0) : (parseFloat(fd.get("stock")) || 0);
     const exps = lots.filter((l) => (parseFloat(l.qty) || 0) > 0 && l.expiryDate).map((l) => l.expiryDate).sort();
@@ -709,7 +725,7 @@ function downloadTemplateExcel() {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     downloadBlob(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "file-mau-hang-hoa.xlsx");
   } catch (err) {
-    alert("Không tải được file mẫu. Kiểm tra mạng rồi thử lại.");
+    notify("Không tải được file mẫu. Kiểm tra mạng rồi thử lại.");
   }
 }
 $("#templateProductsBtn").addEventListener("click", downloadTemplateExcel);
@@ -877,8 +893,8 @@ function openCategoryModal() {
     <div class="modal-actions"><button class="btn btn-ghost" type="button" onclick="closeModal()">Đóng</button></div>`);
   $("#catAddBtn").addEventListener("click", async () => {
     const name = $("#catNewName").value.trim();
-    if (!name) { alert("Nhập tên nhóm hàng."); return; }
-    if (db.categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) { alert(`Nhóm "${name}" đã có rồi.`); return; }
+    if (!name) { notify("Nhập tên nhóm hàng."); return; }
+    if (db.categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) { notify(`Nhóm "${name}" đã có rồi.`); return; }
     await DB.put("categories", { id: DB.uid("cat"), name });
     closeModal(); openCategoryModal(); renderProducts();
   });
@@ -889,14 +905,14 @@ function openCategoryModal() {
       const name = prompt("Tên nhóm hàng mới:", c.name);
       if (name === null) return;
       const nn = name.trim();
-      if (!nn) { alert("Tên nhóm không được để trống."); return; }
-      if (db.categories.some((x) => x.id !== c.id && x.name.toLowerCase() === nn.toLowerCase())) { alert(`Nhóm "${nn}" đã có rồi.`); return; }
+      if (!nn) { notify("Tên nhóm không được để trống."); return; }
+      if (db.categories.some((x) => x.id !== c.id && x.name.toLowerCase() === nn.toLowerCase())) { notify(`Nhóm "${nn}" đã có rồi.`); return; }
       c.name = nn; await DB.put("categories", c);
       closeModal(); openCategoryModal(); renderProducts();
     }
     if (btn.dataset.act === "del") {
       const n = count(c.id);
-      if (n > 0) { alert(`Nhóm "${c.name}" đang có ${n} mặt hàng, không xóa được. Chuyển các mặt hàng sang nhóm khác trước.`); return; }
+      if (n > 0) { notify(`Nhóm "${c.name}" đang có ${n} mặt hàng, không xóa được. Chuyển các mặt hàng sang nhóm khác trước.`); return; }
       if (await confirmBox("Xóa nhóm hàng", `Xóa nhóm "${c.name}"?`)) {
         await DB.remove("categories", c.id);
         closeModal(); openCategoryModal(); renderProducts();
@@ -1101,7 +1117,7 @@ function openCustomerForm(c) {
     const fd = new FormData(e.target);
     const db = DB.get();
     const dup = findCustomerByPhone(db, fd.get("phone"));
-    if (dup && dup.id !== c?.id) { showPhoneDup(); alert("Số điện thoại này đã có khách hàng. Mở khách đã lưu để sửa thay vì tạo mới."); return; }
+    if (dup && dup.id !== c?.id) { showPhoneDup(); notify("Số điện thoại này đã có khách hàng. Mở khách đã lưu để sửa thay vì tạo mới."); return; }
     const item = {
       id: c?.id || DB.uid("kh"),
       code: (fd.get("code") || "").trim() || ("KH" + String(1000000 + db.customers.length + 1)),
@@ -1130,7 +1146,7 @@ function openDebtPayment(c) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const amount = moneyInput(fd.get("amount"));
-    if (amount <= 0 || amount > (c.debt || 0)) { alert("Số tiền trả không hợp lệ."); return; }
+    if (amount <= 0 || amount > (c.debt || 0)) { notify("Số tiền trả không hợp lệ."); return; }
     c.debt = (c.debt || 0) - amount;
     await DB.put("customers", c);
     await DB.put("cashEntries", { id: DB.uid("pt"), code: "PT" + Date.now().toString().slice(-6), date: fd.get("date") || todayStr(), time: new Date().toISOString(), type: "in", category: "Thu tiền khách trả", amount, person: c.name, note: fd.get("note") || `Thu nợ ${c.code}`, customerId: c.id });
@@ -1152,7 +1168,7 @@ $("#customerFileInput").addEventListener("change", async (e) => {
       const text = await f.text();
       rows = text.split(/\r?\n/).map((l) => l.split(",").map((s) => s.replace(/^"|"$/g, "").trim()));
     }
-  } catch (err) { alert("Không đọc được file."); e.target.value = ""; return; }
+  } catch (err) { notify("Không đọc được file."); e.target.value = ""; return; }
   let added = 0;
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i]; if (!r || !r[0]) continue;
@@ -1160,7 +1176,7 @@ $("#customerFileInput").addEventListener("change", async (e) => {
     added++;
   }
   e.target.value = "";
-  alert(`Đã tải lên ${added} khách hàng.`);
+  notify(`Đã tải lên ${added} khách hàng.`);
   renderCustomers();
 });
 
@@ -1257,19 +1273,19 @@ function openEmployeeForm(emp) {
       const pw = (fd.get("password") || "").trim();
       if (pw) {
         const res = await Auth.setPassword(emp, pw);
-        if (!res.ok) alert(res.message || "Không đổi được mật khẩu. Thử lại sau.");
-        else alert(res.created ? "Đã tạo tài khoản đăng nhập cho nhân viên này. Nhân viên đăng nhập được bằng mật khẩu mới." : "Đã đổi mật khẩu.");
+        if (!res.ok) notify(res.message || "Không đổi được mật khẩu. Thử lại sau.");
+        else notify(res.created ? "Đã tạo tài khoản đăng nhập cho nhân viên này. Nhân viên đăng nhập được bằng mật khẩu mới." : "Đã đổi mật khẩu.");
       }
     } else {
       const username = fd.get("username").trim();
-      if (DB.get().employees.find((x) => x.username === username)) { alert("Tên đăng nhập này đã có người dùng."); return; }
+      if (DB.get().employees.find((x) => x.username === username)) { notify("Tên đăng nhập này đã có người dùng."); return; }
       const item = { id: DB.uid("emp"), username, name: fd.get("name").trim(), role: fd.get("role"), permissions, phone: "", note: "" };
       await DB.put("employees", item);
       // Chế độ Firebase: tạo luôn tài khoản đăng nhập (username@komati.local)
       // để nhân viên đăng nhập được; chế độ demo thì lưu mật khẩu đã băm.
       if (DB.isFirebase()) {
         const acc = await Auth.createLoginAccount(username, fd.get("password"));
-        if (!acc.ok) alert(`Đã lưu hồ sơ nhân viên "${username}" nhưng chưa tạo được tài khoản đăng nhập (${acc.message || "lỗi không rõ"}). Nhân viên chưa đăng nhập được — mở "Đổi mật khẩu" của nhân viên này để tạo lại.`);
+        if (!acc.ok) notify(`Đã lưu hồ sơ nhân viên "${username}" nhưng chưa tạo được tài khoản đăng nhập (${acc.message || "lỗi không rõ"}). Nhân viên chưa đăng nhập được — mở "Đổi mật khẩu" của nhân viên này để tạo lại.`);
       } else {
         await Auth.setPassword(item, fd.get("password"));
       }
@@ -1290,11 +1306,11 @@ function openChangePassword(emp) {
   $("#passForm", card).onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    if (fd.get("p1") !== fd.get("p2")) { alert("Hai mật khẩu nhập chưa khớp."); return; }
+    if (fd.get("p1") !== fd.get("p2")) { notify("Hai mật khẩu nhập chưa khớp."); return; }
     const res = await Auth.setPassword(emp, fd.get("p1"));
-    if (!res.ok) { alert(res.message || "Không đổi được mật khẩu. Thử lại sau."); return; }
+    if (!res.ok) { notify(res.message || "Không đổi được mật khẩu. Thử lại sau."); return; }
     closeModal();
-    alert(res.created ? "Đã tạo tài khoản đăng nhập cho nhân viên này. Nhân viên đăng nhập được bằng mật khẩu mới." : "Đã đổi mật khẩu.");
+    notify(res.created ? "Đã tạo tài khoản đăng nhập cho nhân viên này. Nhân viên đăng nhập được bằng mật khẩu mới." : "Đã đổi mật khẩu.");
   };
 }
 
@@ -1535,7 +1551,7 @@ $("#savePrintSettings").addEventListener("click", async () => {
   if (pendingLogo) { s.logo = pendingLogo; pendingLogo = null; }
   await DB.put("settings", s);
   renderReceiptPreview();
-  alert("Đã lưu cài đặt in.");
+  notify("Đã lưu cài đặt in.");
 });
 $("#printTestBtn").addEventListener("click", () => printOrder(sampleOrderForPreview()));
 function printOrder(o) {
@@ -1686,7 +1702,7 @@ function openStockCheck() {
         if (counted !== sys) { p.stock = counted; changed++; touched.set(p.id, p); }
       }
     }
-    if (!items.length) { alert("Chưa chọn mặt hàng nào để kiểm."); return; }
+    if (!items.length) { notify("Chưa chọn mặt hàng nào để kiểm."); return; }
     for (const p of touched.values()) { DB.recalcStock(p); await DB.put("products", p); }
     const totalDiff = items.reduce((s, it) => s + it.diff, 0);
     const rec = {
@@ -1698,7 +1714,7 @@ function openStockCheck() {
     DB.logActivity(`Kiểm kho ${rec.code}: ${items.length} dòng kiểm, ${changed} dòng đổi số lượng`, totalDiff, "📋");
     closeModal();
     renderProducts();
-    alert(`Đã lưu bản kiểm kho ${rec.code}.\nĐã kiểm ${items.length} dòng, ${changed} dòng thay đổi số lượng.`);
+    notify(`Đã lưu bản kiểm kho ${rec.code}.\nĐã kiểm ${items.length} dòng, ${changed} dòng thay đổi số lượng.`);
   };
 }
 $("#stockCheckBtn").addEventListener("click", openStockCheck);

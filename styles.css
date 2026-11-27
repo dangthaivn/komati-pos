@@ -170,6 +170,12 @@ main { max-width: 1720px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .modal-card.xl { max-width: 1080px; }
 .modal-card h3 { margin: 0 0 6px; font-size: 18px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+/* ---------- Thông báo nhỏ giữa màn hình (thay alert() trình duyệt) ---------- */
+.toast { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,.35); pointer-events: none; padding: 16px; }
+.toast[hidden] { display: none; }
+.toast-card { pointer-events: auto; background: #fff; border-radius: 12px; padding: 20px 24px; min-width: 280px; max-width: 90vw; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.toast-card p { margin: 0 0 16px; font-size: 15px; line-height: 1.5; white-space: pre-line; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .perm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 8px; }
 .perm-grid label { display: flex !important; align-items: center; gap: 8px; font-weight: 400 !important; margin: 4px 0 !important; }
