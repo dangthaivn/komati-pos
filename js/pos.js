@@ -68,19 +68,31 @@ function renderPOS() {
   const cur = sel.value;
   sel.innerHTML = `<option value="">Tất cả nhóm</option>` + db.categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
   sel.value = cur || cat;
-  const list = db.products.filter((p) =>
-    (!sel.value || p.categoryId === sel.value) &&
-    (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)) &&
-    (p.stock || 0) > 0);
-  $("#posGrid").innerHTML = list.map((p) => `<button class="pos-item" data-id="${p.id}" type="button">
+  const list = db.products
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) =>
+      (!sel.value || p.categoryId === sel.value) &&
+      (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)))
+    .sort((a, b) => {
+      // Mới nhất trước, theo thời gian nhập/tạo hàng. Mặt hàng cũ chưa có
+      // createdAt thì lấy theo thứ tự thêm vào (mới thêm nằm cuối mảng).
+      const ta = a.p.createdAt || "";
+      const tb = b.p.createdAt || "";
+      if (ta !== tb) return tb.localeCompare(ta);
+      return b.i - a.i;
+    })
+    .map(({ p }) => p);
+  $("#posGrid").innerHTML = list.map((p) => {
+    const out = (p.stock || 0) <= 0;
+    return `<button class="pos-item${out ? " out" : ""}" data-id="${p.id}" type="button">
     <span class="thumb">${p.image ? `<img src="${p.image}" alt="">` : "🖼️"}</span>
     <span class="pinfo">
       <span class="pname">${esc(p.name)}</span>
       <span class="pcode">Mã: ${esc(p.code)}</span>
       <span class="pprice">${fmt(p.price)}đ</span>
-      <span class="pstock">Tồn: ${p.stock} ${esc(p.unit)}</span>
+      ${out ? `<span class="pstock" style="color:var(--red);font-weight:700">Hết hàng</span>` : `<span class="pstock">Tồn: ${p.stock} ${esc(p.unit)}</span>`}
     </span>
-  </button>`).join("") || `<p class="muted" style="grid-column:1/-1">Không còn hàng trong kho hoặc không khớp tìm kiếm.</p>`;
+  </button>`; }).join("") || `<p class="muted" style="grid-column:1/-1">Không có mặt hàng nào khớp tìm kiếm.</p>`;
   renderPosCart();
 }
 function renderPosCart() {

@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v24";
+const APP_VERSION = "v25";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -619,6 +619,10 @@ function openProductForm(p) {
       stock,
       expiryDate: exps.length ? exps[0] : null,
     };
+    // Giữ nguyên thời gian tạo khi sửa; mặt hàng mới thì ghi thời gian tạo
+    // để màn hình Bán hàng xếp mới nhất trước.
+    if (!p) item.createdAt = new Date().toISOString();
+    else if (p.createdAt) item.createdAt = p.createdAt;
     await DB.put("products", item);
     closeModal(); renderProducts();
   };
@@ -802,7 +806,7 @@ async function handleProductImport(e) {
       await DB.put("products", {
         id: DB.uid("sp"), code, name, categoryId: cat.id,
         costPrice: cost, price, unit, units: [], stock,
-        expiryDate: expiry, image,
+        expiryDate: expiry, image, createdAt: new Date().toISOString(),
       });
       added++;
     }
