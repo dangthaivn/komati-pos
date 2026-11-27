@@ -157,6 +157,7 @@ const DB = (() => {
       await Promise.all(jobs);
     }
     data.products.forEach(ensureLots);
+    await backfillActivity(data);
     return data;
   }
   async function saveToFirestore(coll, item) {
@@ -231,10 +232,70 @@ const DB = (() => {
     if (Array.isArray(arr)) { const i = arr.findIndex((x) => x.id === id); if (i >= 0) arr.splice(i, 1); }
     if (fs) await deleteFromFirestore(coll, id); else saveDemo();
   }
+  // Nhật ký cửa hàng (Hoạt động gần đây ở Tổng quan): mỗi mục ghi vào
+  // Firestore để tải lại trang / đổi máy vẫn còn. Trước đây hàm này chỉ
+  // ghi vào bộ nhớ trong phiên nên nhật ký luôn trống sau khi tải lại —
+  // đó là lý do Sếp thấy "Chưa có hoạt động nào."
   function logActivity(text, amount, icon = "🧾", time = new Date()) {
-    store.activity.unshift({ id: uid("ac"), text, amount, icon, time: time.toISOString() });
-    store.activity = store.activity.slice(0, 60);
-    if (!fs) saveDemo();
+    const entry = { id: uid("ac"), text, amount, icon, time: time.toISOString() };
+    store.activity.unshift(entry);
+    const dropped = store.activity.splice(60);
+    if (fs) {
+      saveToFirestore("activity", entry).catch((e) => console.warn("Không ghi được nhật ký:", e));
+      dropped.forEach((d) => deleteFromFirestore("activity", d.id).catch(() => {}));
+    } else saveDemo();
+  }
+  // Lần đầu sau khi sửa: nhật ký trên Firestore còn trống (trước đây không
+  // ghi) nhưng cửa hàng đã có dữ liệu thật — dựng lại nhật ký từ đơn hàng,
+  // phiếu thu/chi, nhập kho, kiểm kho. Chỉ chạy khi nhật ký đang trống.
+  async function backfillActivity(data) {
+    if (!fs || (data.activity && data.activity.length)) return;
+    const entries = [];
+    const push = (text, amount, icon, time) => {
+      const t = time ? new Date(time) : null;
+      if (!t || isNaN(t.getTime())) return;
+      entries.push({ id: uid("ac"), text, amount, icon, time: t.toISOString() });
+    };
+    const byId = (coll, id) => (data[coll] || []).find((x) => x.id === id);
+    const at = (x) => x.time || (x.date ? x.date + "T00:00:00" : null);
+    const orderRevenue = (o) => (o.items || []).reduce((s, it) => s + (it.price || 0) * (it.qty || 0) - (it.discount || 0), 0) - (o.discountValue || 0) + (o.shipping || 0);
+    for (const o of data.orders || []) {
+      const rev = orderRevenue(o);
+      if (o.status === "returned") push(`Trả hàng hóa đơn ${o.code}`, rev, "↩️", at(o));
+      else if (o.status === "cancelled") push(`Hủy hóa đơn ${o.code}`, rev, "🗑️", at(o));
+      else push(`Bán đơn hàng ${o.code} cho ${o.customerName || "Khách lẻ"}`, rev, "🛒", at(o));
+    }
+    // Phiếu tự sinh theo đơn hàng / nhập kho / trả hàng đã có dòng nhật ký
+    // riêng từ dữ liệu gốc nên bỏ qua ở đây để khỏi ghi trùng.
+    const AUTO_CATS = ["Bán hàng", "Bán hàng ghi nợ", "Hoàn tiền trả hàng", "Mua hàng"];
+    for (const x of data.cashEntries || []) {
+      if (AUTO_CATS.includes(x.category)) continue;
+      if (x.category === "Khách trả nợ") {
+        const c = x.customerId ? byId("customers", x.customerId) : null;
+        push(`${c ? c.name : (x.person || "Khách hàng")} trả nợ`, x.amount, "💵", at(x));
+      } else if (x.category === "Thu tiền khách trả") {
+        push(`${x.person || "Khách hàng"} trả nợ`, x.amount, "💵", at(x));
+      } else if (x.type === "in") push(`Phiếu thu ${x.category}${x.note ? " — " + x.note : ""}`, x.amount, "💵", at(x));
+      else push(`Phiếu chi ${x.category}${x.note ? " — " + x.note : ""}`, x.amount, "💸", at(x));
+    }
+    for (const s of data.stockIns || []) {
+      const p = s.productId ? byId("products", s.productId) : null;
+      const unit = p && p.unit ? " " + p.unit : "";
+      push(`Nhập kho ${s.qty}${unit} ${s.name}`, (s.qty || 0) * (s.cost || 0), "📥", at(s));
+    }
+    for (const r of data.stockChecks || []) {
+      const changed = (r.items || []).filter((it) => (it.diff || 0) !== 0).length;
+      push(`Kiểm kho ${r.code}: ${(r.items || []).length} dòng kiểm, ${changed} dòng đổi số lượng`, r.totalDiff || 0, "📋", at(r));
+    }
+    // Bỏ trùng (cùng nội dung + cùng thời điểm), xếp mới nhất trước, giữ tối đa 60.
+    const seen = new Set();
+    const list = entries
+      .filter((e) => { const k = e.text + "|" + e.time; if (seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a, b) => String(b.time).localeCompare(String(a.time)))
+      .slice(0, 60);
+    if (!list.length) return;
+    data.activity = list;
+    await Promise.all(list.map((e) => saveToFirestore("activity", e).catch(() => {})));
   }
 
   return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs, loadAfterLogin, ensureLots, recalcStock, deductFromLots, withTimeout };

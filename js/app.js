@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v31";
+const APP_VERSION = "v32";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -430,7 +430,9 @@ $("#productTable").addEventListener("click", async (e) => {
   if (btn.dataset.act === "stockin") openStockIn(p);
   if (btn.dataset.act === "del") {
     if (await confirmBox("Xóa hàng hóa", `Xóa "${p.name}" khỏi cửa hàng?`)) {
-      await DB.remove("products", p.id); productSel.delete(p.id); renderProducts();
+      await DB.remove("products", p.id); productSel.delete(p.id);
+      DB.logActivity(`Xóa mặt hàng "${p.name}"`, null, "🗑️");
+      renderProducts();
     }
   }
 });
@@ -441,7 +443,9 @@ $("#checkAllProducts").addEventListener("change", (e) => {
 $("#bulkDeleteProducts").addEventListener("click", async () => {
   if (!productSel.size) return;
   if (await confirmBox("Xóa hàng hóa", `Xóa ${productSel.size} mặt hàng đã chọn?`)) {
+    const n = productSel.size;
     for (const id of [...productSel]) await DB.remove("products", id);
+    DB.logActivity(`Xóa ${n} mặt hàng`, null, "🗑️");
     productSel.clear(); renderProducts();
   }
 });
@@ -982,6 +986,7 @@ $("#bulkDeleteOrders").addEventListener("click", async () => {
       const o = DB.get().orders.find((x) => x.id === id);
       if (o && o.status === "completed") await reverseOrderEffects(o);
       await DB.remove("orders", id);
+      if (o) DB.logActivity(`Xóa hóa đơn ${o.code}`, orderStats(o).revenue, "🗑️");
     }
     orderSel.clear(); renderOrders();
   }
@@ -1406,7 +1411,9 @@ $("#cashTable").addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-del]");
   if (!btn) return;
   if (await confirmBox("Xóa phiếu", "Xóa phiếu thu / chi này? Số liệu công nợ khách hàng (nếu có) không tự đổi lại.")) {
+    const x = DB.get().cashEntries.find((e) => e.id === btn.dataset.del);
     await DB.remove("cashEntries", btn.dataset.del);
+    if (x) DB.logActivity(`Xóa phiếu ${x.code} — ${x.category} ${fmt(x.amount)}đ`, x.amount, "🗑️");
     renderCashbook();
   }
 });
@@ -1484,6 +1491,13 @@ function openCashVoucher(type) {
       const c = DB.get().customers.find((x) => x.id === customerId);
       if (c) { c.debt = Math.max(0, (c.debt || 0) - amount); await DB.put("customers", c); }
     }
+    // Ghi nhật ký cửa hàng (Hoạt động gần đây ở Tổng quan).
+    const note = (fd.get("note") || "").trim();
+    if (type === "in" && category === "Khách trả nợ") {
+      const c = customerId ? DB.get().customers.find((x) => x.id === customerId) : null;
+      DB.logActivity(`${c ? c.name : "Khách hàng"} trả nợ`, amount, "💵");
+    } else if (type === "in") DB.logActivity(`Phiếu thu ${category}${note ? " — " + note : ""}`, amount, "💵");
+    else DB.logActivity(`Phiếu chi ${category}${note ? " — " + note : ""}`, amount, "💸");
     closeModal(); renderCashbook();
   };
 }
