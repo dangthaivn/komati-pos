@@ -74,8 +74,12 @@ function renderPOS() {
       (!sel.value || p.categoryId === sel.value) &&
       (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)))
     .sort((a, b) => {
-      // Mới nhất trước, theo thời gian nhập/tạo hàng. Mặt hàng cũ chưa có
-      // createdAt thì lấy theo thứ tự thêm vào (mới thêm nằm cuối mảng).
+      // Còn hàng lên trước; trong mỗi nhóm thì mới nhất trước, theo thời
+      // gian nhập/tạo hàng. Mặt hàng cũ chưa có createdAt thì lấy theo
+      // thứ tự thêm vào (mới thêm nằm cuối mảng).
+      const sa = (a.p.stock || 0) > 0 ? 0 : 1;
+      const sb = (b.p.stock || 0) > 0 ? 0 : 1;
+      if (sa !== sb) return sa - sb;
       const ta = a.p.createdAt || "";
       const tb = b.p.createdAt || "";
       if (ta !== tb) return tb.localeCompare(ta);
