@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v26";
+const APP_VERSION = "v27";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1298,28 +1298,71 @@ function renderCashbook() {
   const date = $("#cashDate").value || todayStr();
   $("#cashDate").value = date;
   const entries = db.cashEntries.filter((x) => x.date === date);
-  const opening = entries.filter((x) => x.category === "Quỹ đầu ngày").reduce((s, x) => s + x.amount, 0);
-  const cashSales = db.orders.filter((o) => o.date === date && o.status === "completed" && o.payment === "cash").reduce((s, o) => s + orderStats(o).revenue, 0);
-  // Phiếu "Bán hàng" tiền mặt đã được tính trong cashSales nên loại khỏi tổng phiếu thu để khỏi tính 2 lần.
-  // Phiếu "Bán hàng ghi nợ" cũng vậy: đơn ghi nợ đã được tính trong nonCashOrders.
-  const entriesInExSales = entries.filter((x) => x.type === "in" && x.category !== "Bán hàng" && x.category !== "Bán hàng ghi nợ");
-  const nonCashOrders = db.orders.filter((o) => o.date === date && o.status === "completed" && o.payment !== "cash").reduce((s, o) => s + orderStats(o).revenue, 0);
-  const totalIn = cashSales + entriesInExSales.reduce((s, x) => s + x.amount, 0) + nonCashOrders;
-  const totalOut = entries.filter((x) => x.type === "out").reduce((s, x) => s + x.amount, 0);
-  const cashOnHand = opening + cashSales + entriesInExSales.reduce((s, x) => s + x.amount, 0) - totalOut;
+  const isCash = (x) => (x.method || "cash") === "cash";
+  const isTransfer = (x) => x.method === "transfer";
+  // Phiếu "Thu khác" ghi chú "Quỹ đầu ngày" là quỹ mở đầu — chỉ nhập 1 lần
+  // duy nhất; cuối ngày giao tiền cho quản lý xong, số thừa trong két sẽ
+  // tự thành quỹ đầu ngày của hôm sau. (normHeader lược luôn chữ "đ" nên
+  // phải đổi "đ" thành "d" trước khi chuẩn hóa.)
+  const normNote = (s) => normHeader(String(s || "").replace(/đ/gi, "d"));
+  const isOpeningVoucher = (x) => x.type === "in" && x.category === "Thu khác" && normNote(x.note).includes("quydaungay");
+  const openingToday = entries.filter(isOpeningVoucher).reduce((s, x) => s + x.amount, 0);
+  // Quỹ đầu ngày = phiếu quỹ nhập trong ngày + tiền mặt ròng của các ngày
+  // trước (bán hàng tiền mặt + phiếu thu tiền mặt − phiếu chi tiền mặt).
+  const cashBefore = db.orders.filter((o) => o.date < date && o.status === "completed" && o.payment === "cash").reduce((s, o) => s + orderStats(o).revenue, 0)
+    + db.cashEntries.filter((x) => x.date < date && x.category !== "Bán hàng" && x.category !== "Bán hàng ghi nợ" && isCash(x)).reduce((s, x) => s + (x.type === "in" ? x.amount : -x.amount), 0);
+  const opening = openingToday + cashBefore;
+  const ordersToday = db.orders.filter((o) => o.date === date && o.status === "completed");
+  const cashSales = ordersToday.filter((o) => o.payment === "cash").reduce((s, o) => s + orderStats(o).revenue, 0);
+  const transferSales = ordersToday.filter((o) => o.payment === "transfer").reduce((s, o) => s + orderStats(o).revenue, 0);
+  const debtSales = ordersToday.filter((o) => o.payment === "debt").reduce((s, o) => s + orderStats(o).revenue, 0);
+  // Phiếu "Bán hàng" / "Bán hàng ghi nợ" là phiếu tự sinh theo đơn hàng,
+  // đã tính trong cashSales / transferSales / debtSales nên loại khỏi tổng
+  // phiếu thu để khỏi tính 2 lần. Phiếu quỹ cũng loại khỏi thu trong ngày
+  // vì đã tính trong quỹ đầu ngày.
+  const vouchers = entries.filter((x) => x.category !== "Bán hàng" && x.category !== "Bán hàng ghi nợ" && !isOpeningVoucher(x));
+  const sumCat = (list, cat) => list.filter((x) => x.category === cat).reduce((s, x) => s + x.amount, 0);
+  const inCash = vouchers.filter((x) => x.type === "in" && isCash(x));
+  const inTransfer = vouchers.filter((x) => x.type === "in" && isTransfer(x));
+  const outCash = vouchers.filter((x) => x.type === "out" && isCash(x));
+  const outTransfer = vouchers.filter((x) => x.type === "out" && isTransfer(x));
+  const repayCash = sumCat(inCash, "Khách trả nợ");
+  const repayTransfer = sumCat(inTransfer, "Khách trả nợ");
+  const otherCash = sumCat(inCash, "Thu khác");
+  const otherTransfer = sumCat(inTransfer, "Thu khác");
+  const buyCash = sumCat(outCash, "Mua vật dụng");
+  const buyTransfer = sumCat(outTransfer, "Mua vật dụng");
+  const shiftCash = sumCat(outCash, "Giao ca");
+  const shiftTransfer = sumCat(outTransfer, "Giao ca");
+  const miscCash = sumCat(outCash, "Chi khác");
+  const miscTransfer = sumCat(outTransfer, "Chi khác");
+  const cashOnHand = opening + cashSales + repayCash + otherCash - buyCash - shiftCash - miscCash;
+  const transferToday = transferSales + repayTransfer + otherTransfer - buyTransfer - shiftTransfer - miscTransfer;
   $("#cashOpening").textContent = fmt(opening) + "đ";
   $("#cashOpeningDate").textContent = dLabel(date);
-  $("#cashIn").textContent = fmt(totalIn) + "đ";
-  $("#cashOut").textContent = fmt(totalOut) + "đ";
   $("#cashOnHand").textContent = fmt(cashOnHand) + "đ";
+  $("#cashTransfer").textContent = fmt(transferToday) + "đ";
+  $("#cashDebt").textContent = fmt(debtSales) + "đ";
+  // Bảng chi tiết: dòng nào cả 2 cột đều 0 thì ẩn cho gọn.
+  const dRow = (label, a, b) => (a || b) ? `<tr><td>${label}</td><td class="num">${fmt(a)}đ</td><td class="num">${fmt(b)}đ</td></tr>` : "";
+  const dRowNeg = (label, a, b) => (a || b) ? `<tr><td>${label}</td><td class="num" style="color:var(--red)">−${fmt(a)}đ</td><td class="num" style="color:var(--red)">−${fmt(b)}đ</td></tr>` : "";
+  const thuRows = dRow("Bán hàng", cashSales, transferSales) + dRow("Khách trả nợ", repayCash, repayTransfer) + dRow("Thu khác", otherCash, otherTransfer);
+  const chiRows = dRowNeg("Mua vật dụng", buyCash, buyTransfer) + dRowNeg("Giao ca", shiftCash, shiftTransfer) + dRowNeg("Chi khác", miscCash, miscTransfer);
+  $("#cashDetailBody").innerHTML = (thuRows || chiRows)
+    ? (thuRows ? `<tr><td colspan="3" style="font-weight:700;background:#f8fafc">Thu vào</td></tr>` + thuRows : "")
+    + (chiRows ? `<tr><td colspan="3" style="font-weight:700;background:#f8fafc">Chi ra</td></tr>` + chiRows : "")
+    : `<tr><td colspan="3" class="muted" style="text-align:center;padding:16px">Chưa có thu / chi trong ngày này.</td></tr>`;
+  const methodLabel = (x) => x.method === "transfer" ? "Chuyển khoản" : x.method === "debt" ? "Ghi nợ"
+    : (x.category === "Bán hàng" && (x.note || "").includes("Chuyển khoản") ? "Chuyển khoản" : x.category === "Bán hàng ghi nợ" ? "Ghi nợ" : "Tiền mặt");
   $("#cashTable").innerHTML = entries.sort((a, b) => (b.time || "").localeCompare(a.time || "")).map((x) => `<tr>
     <td><b>${esc(x.code)}</b></td>
     <td>${dLabel(x.date)} ${x.time ? new Date(x.time).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : ""}</td>
     <td>${esc(x.category)}</td>
+    <td>${methodLabel(x)}</td>
     <td>${esc(x.person || "—")}</td>
     <td class="num" style="color:${x.type === "in" ? "var(--green)" : "var(--red)"};font-weight:700">${x.type === "in" ? "+" : "−"}${fmt(x.amount)}</td>
     <td><button class="link-btn" data-del="${x.id}" type="button" style="color:var(--red)">Xóa</button></td></tr>`).join("")
-    || `<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Chưa có phiếu thu / chi trong ngày này.</td></tr>`;
+    || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Chưa có phiếu thu / chi trong ngày này.</td></tr>`;
 }
 $("#cashDate").addEventListener("change", () => renderCashbook());
 $("#cashTable").addEventListener("click", async (e) => {
@@ -1336,6 +1379,12 @@ function openCashVoucher(type) {
   const card = openModal(`<h3>${type === "in" ? "Phiếu thu" : "Phiếu chi"}</h3>
     <form id="cashForm">
       <label>Số tiền<input name="amount" type="number" min="1" required></label>
+      <label>Hình thức
+        <select name="method">
+          <option value="cash">Tiền mặt</option>
+          <option value="transfer">Chuyển khoản</option>
+        </select>
+      </label>
       <label>${type === "in" ? "Loại thu" : "Loại chi"}
         <select name="category" id="cvCategory">
           ${type === "in"
@@ -1393,7 +1442,7 @@ function openCashVoucher(type) {
     const amount = moneyInput(fd.get("amount"));
     const customerId = type === "in" ? cvCustomerId : null;
     const category = fd.get("category");
-    await DB.put("cashEntries", { id: DB.uid(type === "in" ? "pt" : "pc"), code: (type === "in" ? "PT" : "PC") + Date.now().toString().slice(-6), date: fd.get("date") || todayStr(), time: new Date().toISOString(), type, category, amount, person: fd.get("person").trim(), note: fd.get("note").trim(), customerId });
+    await DB.put("cashEntries", { id: DB.uid(type === "in" ? "pt" : "pc"), code: (type === "in" ? "PT" : "PC") + Date.now().toString().slice(-6), date: fd.get("date") || todayStr(), time: new Date().toISOString(), type, category, method: fd.get("method") || "cash", amount, person: fd.get("person").trim(), note: fd.get("note").trim(), customerId });
     if (type === "in" && customerId && category === "Khách trả nợ") {
       const c = DB.get().customers.find((x) => x.id === customerId);
       if (c) { c.debt = Math.max(0, (c.debt || 0) - amount); await DB.put("customers", c); }

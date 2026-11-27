@@ -222,9 +222,16 @@
       </div>
       <div class="stat-grid stat-grid-4">
         <div class="stat-card"><span class="stat-label">Quỹ đầu ngày</span><b id="cashOpening">0</b><span class="stat-sub" id="cashOpeningDate"></span></div>
-        <div class="stat-card"><span class="stat-label">Tổng thu trong ngày</span><b id="cashIn">0</b><span class="stat-sub">bán hàng + thu nợ + thu khác</span></div>
-        <div class="stat-card"><span class="stat-label">Tổng chi trong ngày</span><b id="cashOut">0</b><span class="stat-sub">chi mua hàng + chi khác</span></div>
-        <div class="stat-card"><span class="stat-label">Tiền mặt trong ngày</span><b id="cashOnHand">0</b><span class="stat-sub">tiền mặt bán ra + thu nợ + khác</span></div>
+        <div class="stat-card"><span class="stat-label">Tiền mặt trong két</span><b id="cashOnHand">0</b><span class="stat-sub">quỹ đầu ngày + thu tiền mặt − chi tiền mặt</span></div>
+        <div class="stat-card"><span class="stat-label">Chuyển khoản hôm nay</span><b id="cashTransfer">0</b><span class="stat-sub">thu chuyển khoản − chi chuyển khoản</span></div>
+        <div class="stat-card"><span class="stat-label">Bán chịu hôm nay</span><b id="cashDebt">0</b><span class="stat-sub">tiền bán ghi nợ, chưa thu</span></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h3>Chi tiết trong ngày</h3>
+        <table class="tbl">
+          <thead><tr><th>Khoản</th><th style="text-align:right">Tiền mặt</th><th style="text-align:right">Chuyển khoản</th></tr></thead>
+          <tbody id="cashDetailBody"></tbody>
+        </table>
       </div>
       <div class="toolbar">
         <input id="cashDate" type="date">
@@ -232,7 +239,7 @@
       </div>
       <div class="card table-card">
         <table class="tbl">
-          <thead><tr><th>Mã phiếu</th><th>Thời gian</th><th>Loại thu chi</th><th>Người nộp/nhận</th><th>Giá trị</th><th></th></tr></thead>
+          <thead><tr><th>Mã phiếu</th><th>Thời gian</th><th>Loại thu chi</th><th>Hình thức</th><th>Người nộp/nhận</th><th>Giá trị</th><th></th></tr></thead>
           <tbody id="cashTable"></tbody>
         </table>
       </div>

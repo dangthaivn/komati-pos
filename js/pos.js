@@ -376,18 +376,17 @@ async function saveOrder(printAfter) {
   }
   await DB.put("orders", order);
   // Tiền mặt / Chuyển khoản / Ghi nợ đều ghi 1 dòng vào Sổ quỹ để Sổ quỹ
-  // tự nhận số liệu (tổng thu đã tính cả đơn chuyển khoản và ghi nợ, phiếu
-  // "Bán hàng" / "Bán hàng ghi nợ" được loại khỏi tổng phiếu thu để khỏi
-  // tính 2 lần — xem renderCashbook).
+  // tự nhận số liệu. Phiếu "Bán hàng" / "Bán hàng ghi nợ" được loại khỏi
+  // tổng phiếu thu để khỏi tính 2 lần — xem renderCashbook.
   const cashCode = "PT" + Date.now().toString().slice(-6);
   if (payment === "cash") {
-    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code}`, orderId: order.id });
+    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng", method: "cash", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code}`, orderId: order.id });
   }
   if (payment === "transfer") {
-    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code} (Chuyển khoản)`, orderId: order.id });
+    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng", method: "transfer", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code} (Chuyển khoản)`, orderId: order.id });
   }
   if (payment === "debt") {
-    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng ghi nợ", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code} (Ghi nợ)`, orderId: order.id });
+    await DB.put("cashEntries", { id: DB.uid("pt"), code: cashCode, date: todayStr(), time: new Date().toISOString(), type: "in", category: "Bán hàng ghi nợ", method: "debt", amount: t.total, person: order.customerName, note: `Bán hàng ${order.code} (Ghi nợ)`, orderId: order.id });
   }
   DB.logActivity(`Bán đơn hàng ${order.code} cho ${order.customerName}`, t.total, "🛒");
   posCart = []; posCustomer = null; posPaidManual = false;
