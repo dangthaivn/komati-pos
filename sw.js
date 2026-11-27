@@ -3,7 +3,7 @@
  * khi mất mạng — để bản mới lên máy trong vòng vài chục giây, không còn bị
  * kẹt ở bản cũ như thời cache-first (bài học từ app chấm công + KOMATI v18).
  * QUAN TRỌNG: tăng số phiên bản CACHE sau MỖI lần deploy. */
-const CACHE = "komati-v32";
+const CACHE = "komati-v33";
 const ASSETS = [
   "./",
   "./index.html",

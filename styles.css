@@ -206,6 +206,15 @@ main { max-width: 1720px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .perm-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
 .perm-chips .badge { display: block; text-align: center; padding: 6px 10px; font-size: 13px; }
 .emp-actions { display: flex; justify-content: flex-end; gap: 16px; margin-top: 12px; }
+/* Máy tính: thẻ nhân viên chia 2 bên — trái 2 dòng (nhãn trên, giá trị dưới), phải Quyền chia 2 dòng đều. Điện thoại giữ nguyên như cũ. */
+@media (min-width: 721px) {
+  .emp-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 24px; align-items: start; }
+  .emp-fields { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; grid-auto-flow: column; gap: 2px 14px; }
+  .emp-field { display: contents; }
+  .emp-perms { grid-column: 2; grid-row: 1; margin-top: 0; border-top: none; border-left: 1px solid var(--line); padding-top: 0; padding-left: 24px; }
+  .perm-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .emp-actions { grid-column: 1 / -1; margin-top: 8px; }
+}
 .pos-item.out { opacity: .55; }
 .pos-item .thumb { display: flex; align-items: center; justify-content: center; width: 100%; height: 64px; border-radius: 8px; margin-bottom: 6px; background: #f1f5f9; font-size: 28px; overflow: hidden; }
 .pos-item .thumb img { width: 100%; height: 100%; object-fit: cover; }
