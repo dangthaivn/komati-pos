@@ -268,14 +268,10 @@ select.mini-input { width: auto; }
 
 /* ---------- Bottom nav (mobile) ---------- */
 .bottomnav { display: none; position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); z-index: 30; padding-bottom: env(safe-area-inset-bottom); }
-.bn-tab { flex: 1; background: none; border: none; padding: 8px 0 6px; font-size: 18px; color: var(--muted); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.bn-tab span { font-size: 11px; font-weight: 600; }
-.bn-tab.active { color: var(--blue); }
-.bn-pos span { color: var(--blue); }
-/* Nút Bán hàng ở thanh dưới điện thoại: khung vuông bo tròn màu cam, nhô lên. */
-.bottomnav .bn-pos { background: linear-gradient(135deg, #ff8a00, #f97316); color: #fff; border-radius: 14px; margin: -14px 6px 6px; padding: 10px 0 8px; box-shadow: 0 4px 12px rgba(249, 115, 22, .45); }
-.bottomnav .bn-pos span { color: #fff; }
-.bottomnav .bn-pos.active { color: #fff; }
+.bn-tab { flex: 1; background: none; border: none; padding: 8px 0 6px; font-size: 18px; color: var(--muted); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: transform .15s ease, color .15s ease; }
+.bn-tab span { font-size: 11px; font-weight: 600; white-space: nowrap; }
+/* Nút đang mở to lên một chút để biết đang ở tab nào. */
+.bn-tab.active { color: var(--blue); transform: scale(1.15); }
 
 /* ---------- Hóa đơn in 80mm ---------- */
 #receiptPrint { display: none; }
