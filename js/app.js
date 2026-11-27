@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v22";
+const APP_VERSION = "v23";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -696,31 +696,24 @@ function parseCsvText(text) {
   if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
   return rows;
 }
-// Xuất toàn bộ hàng hóa hiện tại ra Excel (cũng là file mẫu để nhập lại).
-function productExportRows() {
-  const db = DB.get();
-  const head = ["Mã hàng", "Tên hàng hóa", "Đơn vị tính", "Nhóm hàng", "Link ảnh sản phẩm", "Giá bán", "Giá vốn", "Tồn kho", "Hạn sử dụng"];
-  const catName = (id) => (db.categories.find((c) => c.id === id) || {}).name || "";
-  const rows = db.products.map((p) => [p.code, p.name, p.unit, catName(p.categoryId), p.image || "", p.price || 0, p.costPrice || 0, p.stock || 0, p.expiryDate || ""]);
-  return [head, ...rows];
-}
-function downloadProductsExcel() {
-  const rows = productExportRows();
-  const stamp = todayStr();
-  if (xlsxAvailable()) {
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "HangHoa");
-    XLSX.writeFile(wb, `hang-hoa-${stamp}.xlsx`);
-  } else {
-    downloadBlob(new Blob(["﻿" + rows.map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv" }), `hang-hoa-${stamp}.csv`);
+// Tải file mẫu nhập hàng hóa (file Sếp gửi 27/11, lưu dạng base64 trong
+// js/template.js vì file .xlsx không đẩy trực tiếp lên GitHub được).
+function downloadTemplateExcel() {
+  try {
+    const bin = atob(TEMPLATE_XLSX_B64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    downloadBlob(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "file-mau-hang-hoa.xlsx");
+  } catch (err) {
+    alert("Không tải được file mẫu. Kiểm tra mạng rồi thử lại.");
   }
 }
-$("#templateProductsBtn").addEventListener("click", downloadProductsExcel);
+$("#templateProductsBtn").addEventListener("click", downloadTemplateExcel);
 
 // Cửa sổ Import file: chọn file, tải file hàng hóa hiện tại, xem kết quả.
 function openImportModal() {
   openModal(`<h3>⬆ Nhập hàng hóa từ Excel</h3>
-    <p class="muted">Chọn file Excel (.xlsx) hoặc CSV có các cột: <b>Mã hàng, Tên hàng hóa, Đơn vị tính, Nhóm hàng, Link ảnh sản phẩm, Giá bán, Giá vốn, Tồn kho, Hạn sử dụng</b> (thứ tự cột tùy ý, không cần đúng thứ tự). Mặt hàng trùng <b>Mã hàng</b> sẽ được cập nhật thông tin thay vì tạo mới.</p>
+    <p class="muted">Chọn file Excel (.xlsx) hoặc CSV có các cột: <b>Mã hàng*, Tên hàng hóa*, Đơn vị tính*, Nhóm hàng*, Link ảnh sản phẩm, Giá bán*, Giá vốn, Tồn kho, Hạn sử dụng</b> (thứ tự cột tùy ý, không cần đúng thứ tự). Cột có dấu <b>*</b> là bắt buộc — dòng nào thiếu sẽ bị bỏ qua. Link ảnh để trống thì không có ảnh, Giá vốn/Tồn kho để trống thì bằng 0, Hạn sử dụng để trống thì không có hạn. Mặt hàng trùng <b>Mã hàng</b> sẽ được cập nhật thông tin thay vì tạo mới.</p>
     <input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none">
     <div class="modal-actions" style="justify-content:flex-start">
       <button id="impPickBtn" class="btn btn-primary" type="button">📂 Chọn file để nhập</button>
@@ -729,7 +722,7 @@ function openImportModal() {
     </div>
     <div id="impResult" class="muted" style="margin-top:12px"></div>`);
   $("#impPickBtn").addEventListener("click", () => $("#impFile").click());
-  $("#impExportBtn").addEventListener("click", downloadProductsExcel);
+  $("#impExportBtn").addEventListener("click", downloadTemplateExcel);
   $("#impFile").addEventListener("change", handleProductImport);
 }
 $("#importProductsBtn").addEventListener("click", openImportModal);
@@ -765,21 +758,29 @@ async function handleProductImport(e) {
   };
   if (col.name < 0) { fail("Không tìm thấy cột Tên hàng hóa trong file. Kiểm tra lại tiêu đề cột."); return; }
   const db = DB.get();
-  let added = 0, updated = 0, skipped = 0, autoN = db.products.length + 1;
+  let added = 0, updated = 0, skipped = 0;
+  const skipReasons = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i]; if (!r) continue;
     const val = (idx) => idx >= 0 ? String(r[idx] ?? "").trim() : "";
-    const name = val(col.name);
-    if (!name) { skipped++; continue; }
-    const code = val(col.code) || ("SP" + String(autoN++).padStart(6, "0"));
-    const catName = val(col.cat) || "Chưa phân loại";
+    // Các cột có dấu * trong file mẫu là bắt buộc: Mã hàng, Tên hàng hóa,
+    // Đơn vị tính, Nhóm hàng, Giá bán. Dòng thiếu 1 trong các cột này thì
+    // bỏ qua và ghi rõ lý do. Link ảnh/Giá vốn/Tồn kho/Hạn sử dụng để
+    // trống thì app tự để trống / 0 / 0 / không có hạn sử dụng.
+    const missing = [];
+    const code = val(col.code); if (!code) missing.push("Mã hàng");
+    const name = val(col.name); if (!name) missing.push("Tên hàng hóa");
+    const unit = val(col.unit); if (!unit) missing.push("Đơn vị tính");
+    const catName = val(col.cat); if (!catName) missing.push("Nhóm hàng");
+    const priceRaw = col.price >= 0 ? r[col.price] : "";
+    if (String(priceRaw ?? "").trim() === "") missing.push("Giá bán");
+    if (missing.length) { skipped++; skipReasons.push(`Dòng ${i + 1}: thiếu ${missing.join(", ")}`); continue; }
     let cat = db.categories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
     if (!cat) { cat = { id: DB.uid("cat"), name: catName }; await DB.put("categories", cat); }
-    const unit = val(col.unit) || "Cái";
-    const price = moneyInput(col.price >= 0 ? r[col.price] : 0);
+    const price = moneyInput(priceRaw);
     const cost = moneyInput(col.cost >= 0 ? r[col.cost] : 0);
     const stock = moneyInput(col.stock >= 0 ? r[col.stock] : 0);
-    const expiry = val(col.expiry) || null;
+    const expiry = parseExpiry(col.expiry >= 0 ? r[col.expiry] : "");
     const image = val(col.image);
     const existing = db.products.find((p) => p.code.toLowerCase() === code.toLowerCase());
     if (existing) {
@@ -800,8 +801,27 @@ async function handleProductImport(e) {
     }
   }
   e.target.value = "";
-  if (res) res.innerHTML = `Đã nhập xong: <b>${added} mặt hàng mới</b>, <b>${updated} mặt hàng cập nhật</b>${skipped ? `, ${skipped} dòng bỏ qua (thiếu tên hàng)` : ""}.`;
+  if (res) res.innerHTML = `Đã nhập xong: <b>${added} mặt hàng mới</b>, <b>${updated} mặt hàng cập nhật</b>${skipped ? `, ${skipped} dòng bỏ qua` : ""}.${skipped ? `<br><span style="color:var(--red)">${skipReasons.slice(0, 10).map(esc).join("<br>")}${skipReasons.length > 10 ? `<br>…và ${skipReasons.length - 10} dòng khác` : ""}</span>` : ""}`;
   renderProducts();
+}
+
+// Hạn sử dụng trong file Excel có thể là số seri ngày của Excel (VD 45992),
+// hoặc chuỗi dd/mm/yyyy, hoặc yyyy-mm-dd — đều đổi về yyyy-mm-dd; để trống
+// thì trả null (không có hạn sử dụng).
+function parseExpiry(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    const n = parseFloat(s);
+    if (n > 20000 && n < 80000) {
+      const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+      if (!isNaN(d)) return d.toISOString().slice(0, 10);
+    }
+  }
+  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return s;
 }
 
 /* ---------- Quản lý Nhóm hàng ---------- */
