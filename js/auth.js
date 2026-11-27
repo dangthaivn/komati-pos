@@ -141,7 +141,14 @@ const Auth = (() => {
     return null;
   }
   function me() { return currentUser; }
-  function can(perm) { return !!currentUser && (currentUser.role === "Quản trị" || (currentUser.permissions || []).includes(perm)); }
+  // Quản lý Nhân viên là quyền riêng của admin: dù hồ sơ nhân viên có
+  // tick ô này thì nhân viên vẫn không được vào tab Nhân viên. Chỉ admin
+  // mới được cấp tài khoản, đổi tên và đổi mật khẩu cho nhân viên.
+  function can(perm) {
+    if (!currentUser) return false;
+    if (perm === "employees") return currentUser.role === "Quản trị";
+    return currentUser.role === "Quản trị" || (currentUser.permissions || []).includes(perm);
+  }
   function rememberedUser() { try { return localStorage.getItem(REMEMBER_KEY) || ""; } catch (e) { return ""; } }
   function setRememberedUser(username, remember) {
     try { if (remember) localStorage.setItem(REMEMBER_KEY, username); else localStorage.removeItem(REMEMBER_KEY); } catch (e) { /* bỏ qua */ }
@@ -184,13 +191,16 @@ const Auth = (() => {
     }
   }
 
-  async function setPassword(emp, newPassword) {
+  async function setPassword(emp, newPassword, currentPassword) {
     // Chế độ Firebase: mật khẩu đăng nhập nằm ở Firebase Auth, không nằm ở
-    // bản ghi nhân viên. Chỉ đổi được mật khẩu của chính tài khoản đang đăng
-    // nhập; Firebase không cho đổi mật khẩu của người khác từ trình duyệt.
-    // (Trước đây hàm này gọi updatePassword trên tài khoản đang đăng nhập
-    // bất kể emp là ai — tạo nhân viên mới sẽ vô tình đổi luôn mật khẩu
-    // của admin. Đã sửa: với người khác chỉ tạo tài khoản nếu chưa có.)
+    // bản ghi nhân viên. Chỉ ADMIN mới được gọi hàm này (giao diện đã chặn
+    // nhân viên); admin đổi được mật khẩu của chính mình lẫn của nhân viên.
+    // - Đổi cho chính mình: updatePassword trên tài khoản đang đăng nhập.
+    // - Đổi cho người khác: Firebase không cho đổi mật khẩu của người khác
+    //   từ tài khoản của mình, nên đăng nhập hộ bằng mật khẩu hiện tại của
+    //   nhân viên đó trên app phụ rồi đổi (admin cấp mật khẩu nên biết mật
+    //   khẩu hiện tại; nhân viên không được tự đổi nên mật khẩu không trôi).
+    //   Tài khoản đăng nhập chưa có thì tạo mới bằng mật khẩu mới.
     if (DB.isFirebase() && typeof firebase !== "undefined") {
       const me = firebase.auth().currentUser;
       const myName = me && me.email ? me.email.split("@")[0] : "";
@@ -206,7 +216,24 @@ const Auth = (() => {
       const res = await createLoginAccount(emp.username, newPassword);
       if (!res.ok) return res;
       if (res.created) return { ok: true, created: true };
-      return { ok: false, message: "Tài khoản đăng nhập của nhân viên này đã tồn tại từ trước nên không đổi được mật khẩu từ đây. Nhân viên tự đăng nhập rồi đổi mật khẩu ở tab Nhân viên." };
+      const email = (emp.username || "").includes("@") ? emp.username.toLowerCase() : emp.username.toLowerCase() + "@komati.local";
+      let secondary = null;
+      try {
+        secondary = firebase.initializeApp(window.KOMATI_FIREBASE_CONFIG, "komati-secondary-" + Date.now());
+        const cred = await secondary.auth().signInWithEmailAndPassword(email, currentPassword || "");
+        await cred.user.updatePassword(newPassword);
+        return { ok: true, changed: true };
+      } catch (e) {
+        const code = e && e.code ? String(e.code) : "";
+        if (code === "auth/wrong-password" || code === "auth/invalid-credential" || code === "auth/user-not-found")
+          return { ok: false, message: "Mật khẩu hiện tại của nhân viên chưa đúng. Kiểm tra lại mật khẩu nhân viên đang dùng." };
+        return { ok: false, message: firebaseErr(code) };
+      } finally {
+        if (secondary) {
+          try { await secondary.auth().signOut(); } catch (e) { /* bỏ qua */ }
+          try { await secondary.delete(); } catch (e) { /* bỏ qua */ }
+        }
+      }
     }
     const salt = makeSalt();
     emp.salt = salt;

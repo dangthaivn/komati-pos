@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v30";
+const APP_VERSION = "v31";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -12,6 +12,7 @@ function dLabel(iso) { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`
 function moneyInput(v) { return DB.parseNum(v); }
 // Tài khoản nhân viên (không phải Quản trị): ẩn số tiền lợi nhuận, ẩn nút hủy/trả hàng.
 function isStaffUser() { const me = Auth.me(); return !!me && me.role !== "Quản trị"; }
+function isAdminUser() { const me = Auth.me(); return !!me && me.role === "Quản trị"; }
 
 /* ---------- Chống trùng lặp ---------- */
 // Chuẩn hóa SĐT để so sánh: chỉ giữ chữ số, +84… → 0…
@@ -1181,7 +1182,10 @@ $("#customerFileInput").addEventListener("change", async (e) => {
 });
 
 /* ---------- NHÂN VIÊN ---------- */
+// Tab Nhân viên chỉ dành cho admin (Auth.can("employees") đã chặn nhân
+// viên ở điều hướng); đây là lớp chặn thứ hai nếu hàm bị gọi trực tiếp.
 function renderEmployees() {
+  if (!isAdminUser()) { $("#employeeList").innerHTML = `<p class="muted">Chỉ quản trị viên mới xem và cài đặt tài khoản nhân viên.</p>`; return; }
   const db = DB.get();
   $("#employeeList").innerHTML = db.employees.map((e) => `<div class="emp-card">
     <div class="emp-fields">
@@ -1206,12 +1210,16 @@ $("#employeeList").addEventListener("click", async (e) => {
   if (btn.dataset.act === "edit") openEmployeeForm(emp);
   if (btn.dataset.act === "pass") openChangePassword(emp);
   if (btn.dataset.act === "del") {
+    if (!isAdminUser()) { notify("Chỉ quản trị viên mới được xóa nhân viên."); return; }
     if (await confirmBox("Xóa nhân viên", `Xóa nhân viên "${emp.name}" (${emp.username})?`)) {
       await DB.remove("employees", emp.id); renderEmployees();
     }
   }
 });
 function openEmployeeForm(emp) {
+  // Chỉ admin mới được tạo/sửa tài khoản nhân viên (đổi tên, vai trò,
+  // quyền, mật khẩu). Nhân viên không được tự thay đổi gì ở đây.
+  if (!isAdminUser()) { notify("Chỉ quản trị viên mới được cài đặt tài khoản nhân viên."); return; }
   const perms = emp?.permissions || [];
   // Ô mật khẩu có icon con mắt giống màn hình đăng nhập.
   const pwField = (required) => `<label>Mật khẩu
@@ -1241,7 +1249,7 @@ function openEmployeeForm(emp) {
       </label>`}
       <p style="font-weight:600;margin:14px 0 4px">Quyền cho nhân viên</p>
       <div class="perm-grid">
-        ${Auth.PERMISSIONS.map((p) => `<label><input type="checkbox" name="perm" value="${p.key}" ${perms.includes(p.key) ? "checked" : ""}> ${esc(p.label)}</label>`).join("")}
+        ${Auth.PERMISSIONS.filter((p) => p.key !== "employees").map((p) => `<label><input type="checkbox" name="perm" value="${p.key}" ${perms.includes(p.key) ? "checked" : ""}> ${esc(p.label)}</label>`).join("")}
       </div>
       <div class="modal-actions"><button type="button" class="btn btn-outline" id="emCancel">Hủy</button>
       <button type="submit" class="btn btn-primary">Lưu nhân viên</button></div>
@@ -1263,7 +1271,9 @@ function openEmployeeForm(emp) {
   $("#employeeForm", card).onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const permissions = $$('input[name="perm"]:checked', card).map((cb) => cb.value);
+    // Quyền "Quản lý Nhân viên" là của riêng admin — không lưu cho nhân viên.
+    let permissions = $$('input[name="perm"]:checked', card).map((cb) => cb.value);
+    if (fd.get("role") !== "Quản trị") permissions = permissions.filter((k) => k !== "employees");
     if (emp) {
       emp.name = fd.get("name").trim();
       emp.role = fd.get("role");
@@ -1295,8 +1305,13 @@ function openEmployeeForm(emp) {
 }
 $("#addEmployeeBtn").addEventListener("click", () => openEmployeeForm(null));
 function openChangePassword(emp) {
+  // Chỉ admin mới được đổi mật khẩu (của mình hoặc của nhân viên).
+  // Nhân viên không được tự đổi mật khẩu của mình.
+  if (!isAdminUser()) { notify("Chỉ quản trị viên mới được đổi mật khẩu."); return; }
+  const isSelf = Auth.me() && Auth.me().username === emp.username;
   const card = openModal(`<h3>Đổi mật khẩu — ${esc(emp.name)}</h3>
     <form id="passForm">
+      ${isSelf ? "" : `<label>Mật khẩu hiện tại của ${esc(emp.name)}<input name="p0" type="password" required minlength="6" autocomplete="current-password"></label>`}
       <label>Mật khẩu mới<input name="p1" type="password" required minlength="6" autocomplete="new-password"></label>
       <label>Nhập lại mật khẩu mới<input name="p2" type="password" required minlength="6" autocomplete="new-password"></label>
       <div class="modal-actions"><button type="button" class="btn btn-outline" id="pwCancel">Hủy</button>
@@ -1307,7 +1322,7 @@ function openChangePassword(emp) {
     e.preventDefault();
     const fd = new FormData(e.target);
     if (fd.get("p1") !== fd.get("p2")) { notify("Hai mật khẩu nhập chưa khớp."); return; }
-    const res = await Auth.setPassword(emp, fd.get("p1"));
+    const res = await Auth.setPassword(emp, fd.get("p1"), fd.get("p0"));
     if (!res.ok) { notify(res.message || "Không đổi được mật khẩu. Thử lại sau."); return; }
     closeModal();
     notify(res.created ? "Đã tạo tài khoản đăng nhập cho nhân viên này. Nhân viên đăng nhập được bằng mật khẩu mới." : "Đã đổi mật khẩu.");
