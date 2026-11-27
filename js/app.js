@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v21";
+const APP_VERSION = "v22";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -287,6 +287,18 @@ function renderDashboard() {
   }
   $("#revChart").innerHTML = html;
 
+  // Top 10: biểu đồ cột ngang, luôn chia sẵn 10 dòng; có số liệu thì điền vào.
+  const renderHbar = (el, entries, max, colorClass) => {
+    const rows = [];
+    for (let i = 0; i < 10; i++) {
+      const [n, v] = entries[i] || [null, 0];
+      rows.push(n
+        ? `<div class="hbar-row"><span class="hbar-name">${esc(n)}</span><div class="hbar-track"><i class="hbar-fill ${colorClass}" style="width:${Math.max(2, (v / max) * 100)}%"></i></div><b class="hbar-val">${fmt(v)}đ</b></div>`
+        : `<div class="hbar-row hbar-empty"><span class="hbar-name">—</span><div class="hbar-track"></div><span class="hbar-val"></span></div>`);
+    }
+    $(el).innerHTML = rows.join("");
+  };
+
   // Top 10 sản phẩm
   const prodAgg = {};
   for (const o of done) for (const it of o.items) {
@@ -294,9 +306,7 @@ function renderDashboard() {
   }
   const topP = Object.entries(prodAgg).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const maxP = Math.max(1, ...(topP.map((x) => x[1])));
-  $("#topProducts").innerHTML = topP.length ? topP.map(([n, v]) =>
-    `<div class="rank-row"><span>${esc(n)}</span><b>${fmt(v)}đ</b><div class="rank-bar"><i style="width:${(v / maxP) * 100}%"></i></div></div>`).join("")
-    : `<p class="muted">Chưa có dữ liệu bán hàng trong kỳ.</p>`;
+  renderHbar("#topProducts", topP, maxP, "hbar-green");
 
   // Top 10 khách hàng
   const custAgg = {};
@@ -306,9 +316,7 @@ function renderDashboard() {
   }
   const topC = Object.entries(custAgg).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const maxC = Math.max(1, ...(topC.map((x) => x[1])));
-  $("#topCustomers").innerHTML = topC.length ? topC.map(([n, v]) =>
-    `<div class="rank-row"><span>${esc(n)}</span><b>${fmt(v)}đ</b><div class="rank-bar"><i style="width:${(v / maxC) * 100}%"></i></div></div>`).join("")
-    : `<p class="muted">Chưa có dữ liệu bán hàng trong kỳ.</p>`;
+  renderHbar("#topCustomers", topC, maxC, "hbar-amber");
 
   // Hoạt động gần đây
   $("#activityFeed").innerHTML = db.activity.slice(0, 12).map((a) =>
