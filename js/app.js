@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v23";
+const APP_VERSION = "v24";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -712,8 +712,8 @@ $("#templateProductsBtn").addEventListener("click", downloadTemplateExcel);
 
 // Cửa sổ Import file: chọn file, tải file hàng hóa hiện tại, xem kết quả.
 function openImportModal() {
-  openModal(`<h3>⬆ Nhập hàng hóa từ Excel</h3>
-    <p class="muted">Chọn file Excel (.xlsx) hoặc CSV có các cột: <b>Mã hàng*, Tên hàng hóa*, Đơn vị tính*, Nhóm hàng*, Link ảnh sản phẩm, Giá bán*, Giá vốn, Tồn kho, Hạn sử dụng</b> (thứ tự cột tùy ý, không cần đúng thứ tự). Cột có dấu <b>*</b> là bắt buộc — dòng nào thiếu sẽ bị bỏ qua. Link ảnh để trống thì không có ảnh, Giá vốn/Tồn kho để trống thì bằng 0, Hạn sử dụng để trống thì không có hạn. Mặt hàng trùng <b>Mã hàng</b> sẽ được cập nhật thông tin thay vì tạo mới.</p>
+  openModal(`<h3>Nhập hàng hóa từ Excel</h3>
+    <p class="muted">Cột có dấu * là bắt buộc. Trùng Mã hàng sẽ cập nhật thay vì tạo mới.</p>
     <input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none">
     <div class="modal-actions" style="justify-content:flex-start">
       <button id="impPickBtn" class="btn btn-primary" type="button">📂 Chọn file để nhập</button>
@@ -730,19 +730,26 @@ $("#importProductsBtn").addEventListener("click", openImportModal);
 async function handleProductImport(e) {
   const f = e.target.files[0]; if (!f) return;
   const res = $("#impResult");
-  const fail = (msg) => { if (res) res.innerHTML = `<span style="color:var(--red)">${esc(msg)}</span>`; e.target.value = ""; };
+  const pickBtn = $("#impPickBtn");
+  if (pickBtn) pickBtn.disabled = true;
+  const done = () => { if (pickBtn) pickBtn.disabled = false; };
+  const fail = (msg) => { if (res) res.innerHTML = `<span style="color:var(--red)">File lỗi: ${esc(msg)}</span>`; e.target.value = ""; done(); };
+  // Báo ngay là đã nhận file và đang nhập, để người dùng biết app đang làm việc.
+  if (res) res.innerHTML = "⏳ Đang nhập…";
   let rows = [];
   try {
     if (/\.xlsx?$/i.test(f.name)) {
-      if (!xlsxAvailable()) { fail("Không tải được thư viện đọc file Excel. Kiểm tra mạng rồi thử lại."); return; }
+      if (!xlsxAvailable()) { fail("không tải được thư viện đọc file Excel. Kiểm tra mạng rồi thử lại."); return; }
       const buf = await f.arrayBuffer();
       const wb = XLSX.read(buf);
       rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-    } else {
+    } else if (/\.csv$/i.test(f.name)) {
       rows = parseCsvText(await f.text());
+    } else {
+      fail("định dạng file không hỗ trợ. Chỉ nhận file .xlsx hoặc .csv theo mẫu."); return;
     }
-  } catch (err) { fail("Không đọc được file. Hãy dùng file Excel theo mẫu của KOMATI."); return; }
-  if (!rows.length) { fail("File trống, không có dữ liệu."); return; }
+  } catch (err) { fail("không đọc được file. Hãy dùng file Excel theo mẫu của KOMATI."); return; }
+  if (!rows.length) { fail("file trống, không có dữ liệu."); return; }
   const headers = rows[0].map((h) => String(h ?? ""));
   // Đọc theo TÊN cột nên file có thứ tự cột nào cũng nhập đúng.
   const col = {
@@ -756,7 +763,7 @@ async function handleProductImport(e) {
     stock: findCol(headers, ["Tồn kho", "Tồn"]),
     expiry: findCol(headers, ["Hạn sử dụng"]),
   };
-  if (col.name < 0) { fail("Không tìm thấy cột Tên hàng hóa trong file. Kiểm tra lại tiêu đề cột."); return; }
+  if (col.name < 0) { fail("không tìm thấy cột Tên hàng hóa trong file. Kiểm tra lại tiêu đề cột."); return; }
   const db = DB.get();
   let added = 0, updated = 0, skipped = 0;
   const skipReasons = [];
@@ -777,8 +784,8 @@ async function handleProductImport(e) {
     if (missing.length) { skipped++; skipReasons.push(`Dòng ${i + 1}: thiếu ${missing.join(", ")}`); continue; }
     let cat = db.categories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
     if (!cat) { cat = { id: DB.uid("cat"), name: catName }; await DB.put("categories", cat); }
-    const price = moneyInput(priceRaw);
-    const cost = moneyInput(col.cost >= 0 ? r[col.cost] : 0);
+    const price = parseMoneyCell(priceRaw);
+    const cost = parseMoneyCell(col.cost >= 0 ? r[col.cost] : 0);
     const stock = moneyInput(col.stock >= 0 ? r[col.stock] : 0);
     const expiry = parseExpiry(col.expiry >= 0 ? r[col.expiry] : "");
     const image = val(col.image);
@@ -803,6 +810,32 @@ async function handleProductImport(e) {
   e.target.value = "";
   if (res) res.innerHTML = `Đã nhập xong: <b>${added} mặt hàng mới</b>, <b>${updated} mặt hàng cập nhật</b>${skipped ? `, ${skipped} dòng bỏ qua` : ""}.${skipped ? `<br><span style="color:var(--red)">${skipReasons.slice(0, 10).map(esc).join("<br>")}${skipReasons.length > 10 ? `<br>…và ${skipReasons.length - 10} dòng khác` : ""}</span>` : ""}`;
   renderProducts();
+  done();
+}
+
+// Tiền trong file có thể ghi "65.000đ", "65.000", "65,000" hay "65000" —
+// đều là 65.000 đồng. Dấu . và , ở đây là phân cách hàng nghìn (kiểu Việt
+// Nam); chỉ coi dấu cuối là thập phân khi phần sau nó có 1-2 chữ số.
+function parseMoneyCell(v) {
+  let s = String(v ?? "").replace(/[^\d.,-]/g, "").trim();
+  if (!s) return 0;
+  const neg = s.startsWith("-");
+  s = s.replace(/-/g, "");
+  if (!s) return 0;
+  const parts = s.split(/[.,]/);
+  let num;
+  if (parts.length === 1) {
+    num = parseFloat(parts[0]);
+  } else {
+    const last = parts[parts.length - 1];
+    const rest = parts.slice(0, -1);
+    const allGroups3 = rest.every((g) => g.length === 3) && last.length === 3;
+    if (allGroups3 || last.length === 3) num = parseFloat(parts.join(""));
+    else if (last.length <= 2) num = parseFloat(rest.join("") + "." + last);
+    else num = parseFloat(parts.join(""));
+  }
+  if (isNaN(num)) return 0;
+  return Math.round(neg ? -num : num);
 }
 
 // Hạn sử dụng trong file Excel có thể là số seri ngày của Excel (VD 45992),
