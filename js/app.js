@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v27";
+const APP_VERSION = "v28";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1167,16 +1167,22 @@ $("#customerFileInput").addEventListener("change", async (e) => {
 /* ---------- NHÂN VIÊN ---------- */
 function renderEmployees() {
   const db = DB.get();
-  $("#employeeTable").innerHTML = db.employees.map((e) => `<tr>
-    <td><b>${esc(e.username)}</b></td><td>${esc(e.name)}</td><td>${esc(e.role)}</td>
-    <td>${(e.permissions || []).map((k) => { const p = Auth.PERMISSIONS.find((x) => x.key === k); return p ? `<span class="badge badge-blue">${esc(p.label)}</span>` : ""; }).join(" ") || `<span class="muted">—</span>`}</td>
-    <td style="white-space:nowrap">
+  $("#employeeList").innerHTML = db.employees.map((e) => `<div class="emp-card">
+    <div class="emp-fields">
+      <div class="emp-field"><span>Tên đăng nhập</span><b>${esc(e.username)}</b></div>
+      <div class="emp-field"><span>Tên nhân viên</span><b>${esc(e.name)}</b></div>
+      <div class="emp-field"><span>Vai trò</span><b>${esc(e.role)}</b></div>
+    </div>
+    <div class="emp-perms"><span>Quyền</span>
+      <div class="perm-chips">${(e.permissions || []).map((k) => { const p = Auth.PERMISSIONS.find((x) => x.key === k); return p ? `<span class="badge badge-blue">${esc(p.label)}</span>` : ""; }).join("") || `<span class="muted">—</span>`}</div>
+    </div>
+    <div class="emp-actions">
       <button class="link-btn" data-act="edit" data-id="${e.id}" type="button">Sửa</button>
       <button class="link-btn" data-act="pass" data-id="${e.id}" type="button">Đổi mật khẩu</button>
       ${e.username !== "admin" ? `<button class="link-btn" data-act="del" data-id="${e.id}" type="button" style="color:var(--red)">Xóa</button>` : ""}
-    </td></tr>`).join("");
+    </div></div>`).join("");
 }
-$("#employeeTable").addEventListener("click", async (e) => {
+$("#employeeList").addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-act]");
   if (!btn) return;
   const emp = DB.get().employees.find((x) => x.id === btn.dataset.id);

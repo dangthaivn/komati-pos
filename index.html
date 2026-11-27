@@ -203,12 +203,7 @@
         <h2>Nhân viên</h2>
         <div class="head-actions"><button id="addEmployeeBtn" class="btn btn-primary" type="button">+ Nhân viên</button></div>
       </div>
-      <div class="card table-card">
-        <table class="tbl">
-          <thead><tr><th>Tên đăng nhập</th><th>Tên nhân viên</th><th>Vai trò</th><th>Quyền</th><th></th></tr></thead>
-          <tbody id="employeeTable"></tbody>
-        </table>
-      </div>
+      <div id="employeeList"></div>
     </section>
 
     <!-- ===== SỔ QUỸ ===== -->
@@ -228,7 +223,7 @@
       </div>
       <div class="card" style="margin-top:12px">
         <h3>Chi tiết trong ngày</h3>
-        <table class="tbl">
+        <table class="tbl tbl-fit">
           <thead><tr><th>Khoản</th><th style="text-align:right">Tiền mặt</th><th style="text-align:right">Chuyển khoản</th></tr></thead>
           <tbody id="cashDetailBody"></tbody>
         </table>
