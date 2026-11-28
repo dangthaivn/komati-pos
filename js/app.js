@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v37";
+const APP_VERSION = "v38";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -259,7 +259,9 @@ function orderStats(order) {
   for (const it of order.items) {
     const p = db.products.find((x) => x.id === it.productId);
     revenue += it.price * it.qty - (it.discount || 0);
-    cogs += (p ? p.costPrice : it.price * 0.8) * it.qty;
+    // Giỏ combo: giá vốn đã chốt theo thành phần lúc bán (it.costPrice),
+    // không lấy giá vốn hiện tại của giỏ (giỏ không có giá vốn riêng).
+    cogs += (it.costPrice != null ? it.costPrice : (p ? p.costPrice : it.price * 0.8)) * it.qty;
   }
   revenue = revenue - (order.discountValue || 0) + (order.shipping || 0);
   return { revenue, cogs, profit: revenue - cogs };
@@ -397,13 +399,13 @@ function renderProducts() {
       <td class="cb"><input type="checkbox" class="row-check" data-id="${p.id}" ${productSel.has(p.id) ? "checked" : ""}></td>
       <td>${esc(p.code)}</td>
       <td><div style="display:flex;gap:8px;align-items:center"><span class="thumb">${p.image ? `<img src="${p.image}" alt="">` : "🖼️"}</span>
-        <span><span class="pname">${esc(p.name)}</span><br><span class="psub">${esc(p.unit)}${p.units.length ? " · +" + p.units.map((u) => u.name).join(", ") : ""}</span></span></div></td>
+        <span><span class="pname">${esc(p.name)}</span>${p.isBundle ? ` <span class="badge badge-blue">Combo</span>` : ""}<br><span class="psub">${esc(p.unit)}${p.units.length ? " · +" + p.units.map((u) => u.name).join(", ") : ""}${p.isBundle ? " · chọn thành phần lúc bán" : ""}</span></span></div></td>
       <td>${esc(cat ? cat.name : "")}</td>
-      <td class="num">${fmt(p.price)}</td><td class="num">${fmt(p.costPrice)}</td>
-      <td class="num">${p.stock} ${esc(p.unit)}</td>
+      <td class="num">${fmt(p.price)}</td><td class="num">${p.isBundle ? `<span class="muted">—</span>` : fmt(p.costPrice)}</td>
+      <td class="num">${p.isBundle ? `<span class="badge badge-blue">Combo</span>` : `${p.stock} ${esc(p.unit)}`}</td>
       <td>${p.expiryDate ? `<span class="badge ${isExp ? "badge-amber" : "badge-green"}">${dLabel(p.expiryDate)}${isExp ? " · còn " + isExp.daysLeft + " ngày" : ""}</span>` : `<span class="muted">—</span>`}</td>
       <td style="white-space:nowrap">
-        <button class="link-btn" data-act="stockin" data-id="${p.id}" type="button">Nhập hàng</button>
+        ${p.isBundle ? "" : `<button class="link-btn" data-act="stockin" data-id="${p.id}" type="button">Nhập hàng</button>`}
         <button class="link-btn" data-act="edit" data-id="${p.id}" type="button">Sửa</button>
         <button class="link-btn" data-act="del" data-id="${p.id}" type="button" style="color:var(--red)">Xóa</button>
       </td></tr>`;
@@ -472,6 +474,8 @@ function productFormHTML(p) {
     </div>
     <div id="pfDupWarn"></div>
     <label>Tên hàng<input name="name" type="text" required value="${esc(p?.name || "")}"></label>
+    <label class="check"><input name="isBundle" type="checkbox" ${p?.isBundle ? "checked" : ""}> Gồm nhiều thành phần (Combo — đóng gói)</label>
+    <p class="muted" style="margin:2px 0 8px">Giỏ/hộp quà làm theo đơn khách đặt: không có tồn kho riêng, nhóm hàng tự về "Combo - đóng gói". Thành phần sẽ do nhân viên chọn lúc bán hàng, giá vốn giỏ tính từ thành phần. Tick vào thì tồn kho/lô cũ của mặt hàng này sẽ bỏ.</p>
     <label>Ảnh hàng hóa
       <span class="file-row"><input type="file" id="productImageInput" accept="image/*" hidden>
       <button type="button" class="btn btn-outline" id="productImageBtn">Chọn ảnh</button>
@@ -548,6 +552,39 @@ function openProductForm(p) {
     });
   }
   drawUnits();
+  // --- Combo: tick "Gồm nhiều thành phần" thì nhóm tự về "Combo - đóng gói",
+  // ẩn Giá vốn / Tồn kho / Đơn vị phụ / Lô hàng (giỏ không có tồn riêng,
+  // giá vốn tính từ thành phần lúc bán).
+  const bundleBox = card.querySelector('[name="isBundle"]');
+  const catSel = card.querySelector('[name="categoryId"]');
+  async function ensureComboCategory() {
+    const db = DB.get();
+    let cat = db.categories.find((c) => c.name === "Combo - đóng gói");
+    if (!cat) { cat = { id: DB.uid("cat"), name: "Combo - đóng gói" }; await DB.put("categories", cat); }
+    return cat;
+  }
+  async function syncBundleUI() {
+    const on = bundleBox.checked;
+    catSel.disabled = on;
+    if (on) {
+      const cat = await ensureComboCategory();
+      if (![...catSel.options].some((o) => o.value === cat.id)) catSel.innerHTML += `<option value="${cat.id}">${esc(cat.name)}</option>`;
+      catSel.value = cat.id;
+    }
+    const hideLabel = (name) => { const inp = card.querySelector(`[name="${name}"]`); if (inp) inp.closest("label").style.display = on ? "none" : ""; };
+    hideLabel("costPrice");
+    hideLabel("stock");
+    // Ô Giá vốn đang required: ẩn đi mà không gỡ required thì form mới
+    // không lưu được (trình duyệt chặn vì ô trống).
+    const costInp = card.querySelector('[name="costPrice"]');
+    if (costInp) costInp.required = !on;
+    const lotsBox = card.querySelector(".lots-box");
+    if (lotsBox) lotsBox.style.display = on ? "none" : "";
+    const unitsBox = card.querySelector(".units-box");
+    if (unitsBox) unitsBox.style.display = on ? "none" : "";
+  }
+  bundleBox.addEventListener("change", syncBundleUI);
+  syncBundleUI();
   $("#pfUnits", card).addEventListener("input", (e) => {
     const nm = e.target.closest(".pu-name");
     if (nm) { formUnits[+nm.dataset.i].name = nm.value; return; }
@@ -632,23 +669,27 @@ function openProductForm(p) {
     }
     const dup = findProductByCode(db, code, p?.id);
     if (dup) { showCodeDup(); notify("Mã hàng này đã tồn tại. Mở mặt hàng đã lưu để sửa thay vì tạo mới."); return; }
-    const lots = formLots.map((l) => ({ ...l }));
-    const stock = lots.length ? lots.reduce((s, l) => s + (parseFloat(l.qty) || 0), 0) : (parseFloat(fd.get("stock")) || 0);
+    const isBundle = fd.get("isBundle") === "on";
+    let categoryId = fd.get("categoryId");
+    if (isBundle) { const cat = await ensureComboCategory(); categoryId = cat.id; }
+    const lots = isBundle ? [] : formLots.map((l) => ({ ...l }));
+    const stock = isBundle ? 0 : (lots.length ? lots.reduce((s, l) => s + (parseFloat(l.qty) || 0), 0) : (parseFloat(fd.get("stock")) || 0));
     const exps = lots.filter((l) => (parseFloat(l.qty) || 0) > 0 && l.expiryDate).map((l) => l.expiryDate).sort();
     const item = {
       id: p?.id || DB.uid("sp"),
       code,
       name: fd.get("name").trim(),
-      categoryId: fd.get("categoryId"),
+      categoryId,
       image: imageData,
-      costPrice: moneyInput(fd.get("costPrice")),
+      costPrice: isBundle ? 0 : moneyInput(fd.get("costPrice")),
       price: moneyInput(fd.get("price")),
       unit: fd.get("unit").trim(),
-      units,
+      units: isBundle ? [] : units,
       lots,
       stock,
-      expiryDate: exps.length ? exps[0] : null,
+      expiryDate: isBundle ? null : (exps.length ? exps[0] : null),
     };
+    if (isBundle) item.isBundle = true;
     // Giữ nguyên thời gian tạo khi sửa; mặt hàng mới thì ghi thời gian tạo
     // để màn hình Bán hàng xếp mới nhất trước.
     if (!p) item.createdAt = new Date().toISOString();
@@ -1030,7 +1071,7 @@ function openOrderDetail(o) {
   const card = openModal(`<h3>Hóa đơn ${esc(o.code)}</h3>
     <p class="muted">${dLabel(o.date)} · ${esc(o.customerName || "Khách lẻ")} · ${o.payment === "cash" ? "Tiền mặt" : o.payment === "transfer" ? "Chuyển khoản" : "Ghi nợ"} · ${o.status === "completed" ? "Hoàn thành" : o.status === "returned" ? "Đã trả hàng" : "Đã hủy"}</p>
     <table class="tbl" style="min-width:0"><thead><tr><th>Sản phẩm</th><th class="num">SL</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead>
-    <tbody>${o.items.map((it) => `<tr><td>${esc(it.name)}${it.discount ? `<br><span class="psub">Giảm ${fmt(it.discount)}đ</span>` : ""}</td><td class="num">${it.qty} ${esc(it.unit)}</td><td class="num">${fmt(it.price)}</td><td class="num">${fmt(it.price * it.qty - (it.discount || 0))}</td></tr>`).join("")}</tbody></table>
+    <tbody>${o.items.map((it) => `<tr><td>${esc(it.name)}${it.discount ? `<br><span class="psub">Giảm ${fmt(it.discount)}đ</span>` : ""}${it.isBundle && (it.components || []).length ? `<br>${it.components.map((c) => `<span class="psub">↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span>`).join("<br>")}` : ""}</td><td class="num">${it.qty} ${esc(it.unit)}</td><td class="num">${fmt(it.price)}</td><td class="num">${fmt(it.price * it.qty - (it.discount || 0))}</td></tr>`).join("")}</tbody></table>
     <div class="pos-summary" style="margin-top:12px">
       <div class="row"><span>Giảm giá hóa đơn</span><span>−${fmt(o.discountValue || 0)}đ</span></div>
       <div class="row"><span>Thu khác (ship)</span><span>${fmt(o.shipping || 0)}đ</span></div>
@@ -1055,7 +1096,16 @@ async function reverseOrderEffects(o) {
   const db = DB.get();
   for (const it of o.items) {
     const p = db.products.find((x) => x.id === it.productId);
-    if (p) { p.stock = (p.stock || 0) + it.qty; await DB.put("products", p); }
+    if (!p) continue;
+    if (it.isBundle && (it.components || []).length) {
+      // Giỏ combo: giỏ không có tồn riêng, hoàn lại kho từng thành phần.
+      for (const c of it.components) {
+        const cp = db.products.find((x) => x.id === c.productId);
+        if (cp) { cp.stock = (cp.stock || 0) + (c.qty || 0) * it.qty; await DB.put("products", cp); }
+      }
+    } else {
+      p.stock = (p.stock || 0) + it.qty; await DB.put("products", p);
+    }
   }
   const s = orderStats(o);
   if (o.payment === "cash" || o.payment === "transfer") {
@@ -1781,6 +1831,7 @@ function openStockCheck() {
     const q = $("#scSearch", card).value.trim().toLowerCase();
     const onlyStock = $("#scOnlyStock", card).checked;
     const list = db.products.filter((p) =>
+      !p.isBundle &&
       (!scCat || p.categoryId === scCat) &&
       (!onlyStock || (p.stock || 0) > 0) &&
       (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) ||

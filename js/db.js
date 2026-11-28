@@ -28,6 +28,7 @@ const DB = (() => {
       { id: "cat_trai", name: "Trái cây nhập khẩu" },
       { id: "cat_viet", name: "Trái cây Việt" },
       { id: "cat_gio", name: "Giỏ quà" },
+      { id: "cat_combo", name: "Combo - đóng gói" },
       { id: "cat_khac", name: "Vật dụng" },
     ];
     const products = [

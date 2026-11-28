@@ -191,6 +191,11 @@ main { max-width: 1720px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .logo-preview-wrap { position: relative; display: inline-block; }
 .logo-preview-wrap[hidden] { display: none; }
 .logo-remove-btn { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid #e5e7eb; background: #fff; color: #dc2626; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(15,23,42,.25); padding: 0; }
+/* Thành phần của giỏ combo trong hóa đơn (chỉ nhân viên thấy). */
+.bundle-comps { margin: 2px 0 6px; padding: 6px 8px; background: #f8fafc; border: 1px dashed var(--line); border-radius: 8px; }
+.bundle-comp { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 2px 0; }
+.comp-pick { display: block; width: 100%; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 6px; cursor: pointer; font-size: 14px; }
+.comp-pick:hover { background: #f1f5f9; }
 
 /* ---------- POS ---------- */
 .pos-layout { display: grid; grid-template-columns: 1fr 440px; gap: 14px; align-items: start; }

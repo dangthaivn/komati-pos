@@ -95,9 +95,10 @@ function renderPOS() {
     .sort((a, b) => {
       // Còn hàng lên trước; trong mỗi nhóm thì mới nhất trước, theo thời
       // gian nhập/tạo hàng. Mặt hàng cũ chưa có createdAt thì lấy theo
-      // thứ tự thêm vào (mới thêm nằm cuối mảng).
-      const sa = (a.p.stock || 0) > 0 ? 0 : 1;
-      const sb = (b.p.stock || 0) > 0 ? 0 : 1;
+      // thứ tự thêm vào (mới thêm nằm cuối mảng). Giỏ combo không có tồn
+      // riêng nên luôn xếp ở nhóm còn hàng.
+      const sa = (a.p.isBundle || (a.p.stock || 0) > 0) ? 0 : 1;
+      const sb = (b.p.isBundle || (b.p.stock || 0) > 0) ? 0 : 1;
       if (sa !== sb) return sa - sb;
       const ta = a.p.createdAt || "";
       const tb = b.p.createdAt || "";
@@ -106,14 +107,14 @@ function renderPOS() {
     })
     .map(({ p }) => p);
   $("#posGrid").innerHTML = list.map((p) => {
-    const out = (p.stock || 0) <= 0;
+    const out = !p.isBundle && (p.stock || 0) <= 0;
     return `<button class="pos-item${out ? " out" : ""}" data-id="${p.id}" type="button">
     <span class="thumb">${p.image ? `<img src="${p.image}" alt="">` : "🖼️"}</span>
     <span class="pinfo">
       <span class="pname">${esc(p.name)}</span>
       <span class="pcode">Mã: ${esc(p.code)}</span>
       <span class="pprice">${fmt(p.price)}đ</span>
-      ${out ? `<span class="pstock" style="color:var(--red);font-weight:700">Hết hàng</span>` : `<span class="pstock">Tồn: ${p.stock} ${esc(p.unit)}</span>`}
+      ${p.isBundle ? `<span class="pstock" style="color:var(--blue);font-weight:700">Combo — chọn thành phần lúc bán</span>` : out ? `<span class="pstock" style="color:var(--red);font-weight:700">Hết hàng</span>` : `<span class="pstock">Tồn: ${p.stock} ${esc(p.unit)}</span>`}
     </span>
   </button>`; }).join("") || `<p class="muted" style="grid-column:1/-1">Không có mặt hàng nào khớp tìm kiếm.</p>`;
   renderPosCart();
@@ -121,8 +122,9 @@ function renderPOS() {
 function renderPosCart() {
   const box = $("#posLines");
   box.innerHTML = posCart.map((it, i) => `<div class="pos-line">
-    <div class="ln-top"><span><b>${esc(it.name)}</b><br><span class="muted">${fmt(it.price)}đ / ${esc(it.unit)}</span></span>
+    <div class="ln-top"><span><b>${esc(it.name)}</b>${it.isBundle ? ` <span class="badge badge-blue">Combo</span>` : ""}<br><span class="muted">${fmt(it.price)}đ / ${esc(it.unit)}</span></span>
     <b>${fmt(Math.max(0, it.price * it.qty - (it.discount || 0)))}đ</b></div>
+    ${it.isBundle ? `<div class="bundle-comps">${(it.components || []).map((c, j) => `<div class="bundle-comp"><span>↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span><button class="btn btn-ghost btn-sm" data-comp-rm="${i}:${j}" type="button" style="color:var(--red)">✕</button></div>`).join("")}<button class="btn btn-outline btn-sm" data-comp-add="${i}" type="button">＋ Thêm thành phần</button></div>` : ""}
     <div class="ln-ctl">
       <span class="qty-group">
         <button class="qty-btn" data-i="${i}" data-d="-1" type="button">−</button>
@@ -209,11 +211,12 @@ $("#posPayBoxes").addEventListener("click", (e) => {
 function addProductToCart(p) {
   const ex = posCart.find((it) => it.productId === p.id && it.unit === p.unit);
   if (ex) {
-    if (ex.qty + 1 > p.stock) { notify(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); return false; }
+    // Giỏ combo không có tồn riêng nên không giới hạn số lượng theo tồn.
+    if (!p.isBundle && ex.qty + 1 > p.stock) { notify(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); return false; }
     ex.qty = fmtQty(ex.qty + 1);
   } else {
-    if (p.stock < 1) { notify(`"${p.name}" đã hết hàng.`); return false; }
-    posCart.push({ productId: p.id, name: p.name, unit: p.unit, qty: 1, price: p.price, costPrice: p.costPrice, discount: 0 });
+    if (!p.isBundle && p.stock < 1) { notify(`"${p.name}" đã hết hàng.`); return false; }
+    posCart.push({ productId: p.id, name: p.name, unit: p.unit, qty: 1, price: p.price, costPrice: p.costPrice, discount: 0, isBundle: !!p.isBundle, components: [] });
   }
   renderPosCart();
   return true;
@@ -237,11 +240,20 @@ $("#posLines").addEventListener("click", (e) => {
     const it = posCart[+q.dataset.i];
     const p = DB.get().products.find((x) => x.id === it.productId);
     it.qty = fmtQty(it.qty + +q.dataset.d);
-    if (it.qty > (p ? p.stock : 99)) { notify(`Chỉ còn ${p ? p.stock : 99} ${p ? p.unit : ""} trong kho.`); it.qty = p ? p.stock : 99; }
+    // Giỏ combo không có tồn riêng: không giới hạn số lượng theo tồn kho.
+    if (!it.isBundle && it.qty > (p ? p.stock : 99)) { notify(`Chỉ còn ${p ? p.stock : 99} ${p ? p.unit : ""} trong kho.`); it.qty = p ? p.stock : 99; }
     // Số lượng nhỏ nhất là 0: bấm − ở 1 thì về 0 và giữ dòng hàng lại,
     // bấm − tiếp vẫn là 0, không xóa hàng khỏi hóa đơn.
     if (it.qty < 0) it.qty = 0;
     if (it.qty === 0) it.discount = 0;
+    renderPosCart(); return;
+  }
+  const ca = e.target.closest("[data-comp-add]");
+  if (ca) { openComponentPicker(+ca.dataset.compAdd); return; }
+  const cr = e.target.closest("[data-comp-rm]");
+  if (cr) {
+    const [ci, cj] = cr.dataset.compRm.split(":").map(Number);
+    posCart[ci].components.splice(cj, 1);
     renderPosCart(); return;
   }
   const rm = e.target.closest("[data-rm]");
@@ -257,7 +269,7 @@ $("#posLines").addEventListener("change", (e) => {
   const p = DB.get().products.find((x) => x.id === it.productId);
   let v = parseFloat(inp.value);
   if (isNaN(v) || v < 0) v = 0;
-  if (p && v > p.stock) { notify(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); v = p.stock; }
+  if (!it.isBundle && p && v > p.stock) { notify(`Chỉ còn ${p.stock} ${p.unit} trong kho.`); v = p.stock; }
   it.qty = fmtQty(v);
   if (it.qty === 0) it.discount = 0;
   renderPosCart();
@@ -308,6 +320,103 @@ function openItemDiscountModal(idx) {
     it.discount = disc;
     closeModal(); renderPosCart();
   };
+}
+/* ----- Giỏ combo: chọn thành phần lúc bán ----- */
+// Gộp nhu cầu thành phần của cả đơn theo mặt hàng (nhiều giỏ có thể dùng
+// chung 1 loại trái). Trả về Map productId -> {qty, name, unit}.
+function aggregateComponents(lines) {
+  const need = new Map();
+  for (const it of lines || []) {
+    if (!it.isBundle) continue;
+    for (const c of it.components || []) {
+      const e = need.get(c.productId) || { qty: 0, name: c.name, unit: c.unit };
+      // Số lượng làm tròn 3 số lẻ như fmtQty để khỏi sai số float
+      // (VD 1.2 × 3 ra 3.5999999999999996 thay vì 3.6).
+      e.qty = Math.round((e.qty + (c.qty || 0) * it.qty) * 1000) / 1000;
+      need.set(c.productId, e);
+    }
+  }
+  return need;
+}
+// Chốt ảnh thành phần của 1 dòng giỏ để lưu vào đơn: tên/đơn vị/số lượng
+// theo 1 giỏ + giá vốn từng thành phần tại lúc bán.
+function snapshotBundleComponents(it, db) {
+  const components = (it.components || []).map((c) => {
+    const cp = db.products.find((x) => x.id === c.productId);
+    return { productId: c.productId, name: c.name, unit: c.unit, qty: c.qty, costPrice: cp ? cp.costPrice || 0 : 0 };
+  });
+  const unitCost = components.reduce((s, c) => s + (c.costPrice || 0) * (c.qty || 0), 0);
+  return { components, unitCost };
+}
+// Cửa sổ chọn thành phần cho 1 giỏ: tìm hàng (trừ giỏ combo khác, trừ hàng
+// hết kho), nhập số lượng, bấm Thêm — giữ cửa sổ mở để thêm tiếp nhiều
+// thành phần, bấm Xong để quay lại hóa đơn.
+function openComponentPicker(idx) {
+  const it = posCart[idx];
+  if (!it || !it.isBundle) return;
+  it.components = it.components || [];
+  const card = openModal(`<h3>Thêm thành phần — ${esc(it.name)}</h3>
+    <p class="muted">Giỏ × ${fmtQty(it.qty)} ${esc(it.unit)} · số lượng tính theo 1 giỏ, app tự nhân với số giỏ lúc bán.</p>
+    <input id="compSearch" type="search" placeholder="Tìm mặt hàng (tên, mã)…" autocomplete="off">
+    <div id="compResults" style="margin-top:4px"></div>
+    <div id="compPicked" style="margin-top:10px"></div>
+    <div id="compAdded" style="margin-top:12px"></div>
+    <div class="modal-actions"><button type="button" class="btn btn-primary" id="compDone">Xong</button></div>`);
+  let picked = null;
+  function drawAdded() {
+    $("#compAdded", card).innerHTML = it.components.length
+      ? `<b>Đã thêm:</b>` + it.components.map((c, j) => `<div class="bundle-comp"><span>↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span><button class="btn btn-ghost btn-sm" data-crm="${j}" type="button" style="color:var(--red)">✕</button></div>`).join("")
+      : `<p class="muted">Chưa thêm thành phần nào.</p>`;
+  }
+  function drawResults(q) {
+    const db = DB.get();
+    const list = db.products.filter((p) => !p.isBundle && (p.stock || 0) > 0 &&
+      (!q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))).slice(0, 8);
+    $("#compResults", card).innerHTML = list.map((p) => `<button type="button" class="comp-pick" data-id="${p.id}">${esc(p.name)} — ${fmt(p.price)}đ · Tồn: ${p.stock} ${esc(p.unit)}</button>`).join("")
+      || `<p class="muted">Không tìm thấy mặt hàng còn hàng.</p>`;
+  }
+  function drawPicked() {
+    const box = $("#compPicked", card);
+    if (!picked) { box.innerHTML = ""; return; }
+    box.innerHTML = `<div style="display:flex;gap:8px;align-items:center">
+      <b style="flex:1">${esc(picked.name)}</b>
+      <input id="compQty" type="number" min="0" step="0.01" value="1" class="mini-input" style="width:90px;text-align:right">
+      <span>${esc(picked.unit)}</span>
+      <button type="button" class="btn btn-primary btn-sm" id="compAddBtn">Thêm</button>
+    </div>`;
+    $("#compAddBtn", card).onclick = () => {
+      const qty = parseFloat($("#compQty", card).value);
+      if (!qty || qty <= 0) { notify("Nhập số lượng thành phần lớn hơn 0."); return; }
+      // Đủ hàng cho cả hóa đơn: đã chọn ở các dòng khác + thêm lần này.
+      const reserved = aggregateComponents(posCart).get(picked.id)?.qty || 0;
+      const need = reserved + qty * it.qty;
+      if (need > (picked.stock || 0)) { notify(`Không đủ "${picked.name}" (cần ${fmtQty(need)} ${picked.unit}, còn ${picked.stock} ${picked.unit}).`); return; }
+      const ex = it.components.find((c) => c.productId === picked.id);
+      if (ex) ex.qty = fmtQty(ex.qty + qty);
+      else it.components.push({ productId: picked.id, name: picked.name, unit: picked.unit, qty: fmtQty(qty) });
+      picked = null;
+      drawPicked(); drawAdded(); renderPosCart();
+      const s = $("#compSearch", card);
+      if (s) { s.value = ""; s.focus(); drawResults(""); }
+    };
+  }
+  drawAdded(); drawResults("");
+  $("#compSearch", card).addEventListener("input", (e) => drawResults(e.target.value.trim().toLowerCase()));
+  $("#compResults", card).addEventListener("click", (e) => {
+    const b = e.target.closest(".comp-pick");
+    if (!b) return;
+    picked = DB.get().products.find((x) => x.id === b.dataset.id);
+    drawPicked();
+    const q = $("#compQty", card);
+    if (q) q.focus();
+  });
+  $("#compAdded", card).addEventListener("click", (e) => {
+    const b = e.target.closest("[data-crm]");
+    if (!b) return;
+    it.components.splice(+b.dataset.crm, 1);
+    drawAdded(); renderPosCart();
+  });
+  $("#compDone", card).onclick = () => { closeModal(); renderPosCart(); };
 }
 /* ---------- Tìm khách hàng ở đầu hóa đơn + thêm khách mới ---------- */
 $("#posCustSearch").addEventListener("input", (e) => {
@@ -375,6 +484,16 @@ async function saveOrder(printAfter) {
   if (!sell.length) { notify("Chưa có sản phẩm nào trong hóa đơn."); return; }
   const db = DB.get();
   const t = posTotals();
+  // Giỏ combo: mỗi giỏ phải có ít nhất 1 thành phần, và kho phải đủ cho
+  // cả đơn (gộp theo mặt hàng vì nhiều giỏ có thể dùng chung 1 loại trái).
+  for (const it of sell) {
+    if (it.isBundle && !(it.components || []).length) { notify(`"${it.name}" chưa có thành phần nào. Bấm nút ＋ Thêm thành phần để chọn trái cây cho giỏ.`); return; }
+  }
+  const compNeed = aggregateComponents(sell);
+  for (const [pid, need] of compNeed) {
+    const cp = db.products.find((x) => x.id === pid);
+    if (!cp || (cp.stock || 0) < need.qty) { notify(`Không đủ "${need.name}" để làm giỏ (cần ${fmtQty(need.qty)} ${need.unit}, còn ${cp ? cp.stock : 0} ${need.unit}).`); return; }
+  }
   const payment = posPayment;
   const paid = readMoneyField($("#posPaid"));
   if (payment === "debt" && !posCustomer) { notify("Ghi nợ cần chọn khách hàng trước."); return; }
@@ -391,12 +510,33 @@ async function saveOrder(printAfter) {
     id: DB.uid("hd"), code: newOrderCode(), date: todayStr(), time: new Date().toISOString(),
     customerId: posCustomer ? posCustomer.id : null,
     customerName: posCustomer ? posCustomer.name : "Khách lẻ",
-    items: sell.map((it) => ({ productId: it.productId, name: it.name, unit: it.unit, qty: it.qty, price: it.price, discount: it.discount || 0 })),
+    items: sell.map((it) => {
+      const base = { productId: it.productId, name: it.name, unit: it.unit, qty: it.qty, price: it.price, discount: it.discount || 0 };
+      if (it.isBundle) {
+        // Chốt thành phần + giá vốn 1 giỏ vào đơn (để hóa đơn in chỉ hiện
+        // tên giỏ, còn nhân viên xem lại đơn vẫn thấy thành phần đã chọn).
+        const snap = snapshotBundleComponents(it, db);
+        base.isBundle = true;
+        base.components = snap.components;
+        base.costPrice = snap.unitCost;
+      }
+      return base;
+    }),
     discountValue: t.disc, shipping: t.ship, payment, paid,
     status: "completed", createdBy: Auth.me().username,
   };
-  // Trừ kho + cập nhật công nợ / tổng mua (trừ theo lô hết hạn trước)
+  // Trừ kho + cập nhật công nợ / tổng mua (trừ theo lô hết hạn trước).
+  // Giỏ combo: giỏ không có tồn riêng — trừ kho từng thành phần đã chọn.
   for (const it of sell) {
+    if (it.isBundle) {
+      for (const c of it.components || []) {
+        const cp = db.products.find((x) => x.id === c.productId);
+        if (!cp) continue;
+        DB.deductFromLots(cp, (c.qty || 0) * it.qty);
+        await DB.put("products", cp);
+      }
+      continue;
+    }
     const p = db.products.find((x) => x.id === it.productId);
     DB.deductFromLots(p, it.qty);
     await DB.put("products", p);
