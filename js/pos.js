@@ -358,6 +358,13 @@ function compAmount(c) {
 function bundleCompsTotal(it) {
   return (it.components || []).reduce((s, c) => s + compAmount(c), 0);
 }
+// Bước nhảy ô số lượng lúc chọn thành phần: hàng cân (Kg) chỉnh từng 0.1
+// (0.3, 0.6, 0.8, 1.2...), hàng đếm (Hộp, Cái...) chỉnh từng 1. min =
+// bước nhảy nên nút xuống không về 0 được (0 là số lượng không hợp lệ).
+function compQtyStep(unit) {
+  const weighed = /kg/i.test(String(unit || "").trim());
+  return { step: weighed ? "0.1" : "1", min: weighed ? "0.1" : "1" };
+}
 // Cửa sổ chọn thành phần cho 1 giỏ: tìm hàng (trừ giỏ combo khác, trừ hàng
 // hết kho), nhập số lượng, bấm Thêm — giữ cửa sổ mở để thêm tiếp nhiều
 // thành phần, bấm Xong để quay lại hóa đơn.
@@ -390,12 +397,20 @@ function openComponentPicker(idx) {
   function drawPicked() {
     const box = $("#compPicked", card);
     if (!picked) { box.innerHTML = ""; return; }
-    box.innerHTML = `<div style="display:flex;gap:8px;align-items:center">
+    const { step: compStep, min: compMin } = compQtyStep(picked.unit);
+    box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <b style="flex:1">${esc(picked.name)}</b>
-      <input id="compQty" type="number" min="0" step="0.01" value="1" class="mini-input" style="width:90px;text-align:right">
+      <input id="compQty" type="number" min="${compMin}" step="${compStep}" value="1" class="mini-input" style="width:90px;text-align:right">
       <span>${esc(picked.unit)}</span>
+      <b id="compAmt" style="white-space:nowrap">${fmt(picked.price || 0)}đ</b>
       <button type="button" class="btn btn-primary btn-sm" id="compAddBtn">Thêm</button>
     </div>`;
+    const qEl = $("#compQty", card);
+    const amtEl = $("#compAmt", card);
+    qEl.addEventListener("input", () => {
+      const q = parseFloat(qEl.value) || 0;
+      amtEl.textContent = fmt(Math.round(q * (picked.price || 0))) + "đ";
+    });
     $("#compAddBtn", card).onclick = () => {
       const qty = parseFloat($("#compQty", card).value);
       if (!qty || qty <= 0) { notify("Nhập số lượng thành phần lớn hơn 0."); return; }
