@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v35";
+const APP_VERSION = "v36";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1642,7 +1642,7 @@ function renderPrintSettings() {
   $("#setShowLogo").checked = !!s.showLogo;
   $("#setShowAddress").checked = !!s.showAddress;
   const prev = $("#storeLogoPreview");
-  if (s.logo) { prev.src = s.logo; prev.hidden = false; } else prev.hidden = true;
+  if (s.logo) { prev.src = s.logo; $("#logoPreviewWrap").hidden = false; } else $("#logoPreviewWrap").hidden = true;
   renderReceiptPreview();
 }
 let pendingLogo = null;
@@ -1650,8 +1650,16 @@ $("#uploadLogoBtn").addEventListener("click", () => $("#setStoreLogo").click());
 $("#setStoreLogo").addEventListener("change", (e) => {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => { pendingLogo = r.result; const p = $("#storeLogoPreview"); p.src = pendingLogo; p.hidden = false; renderReceiptPreview(); };
+  r.onload = () => { pendingLogo = r.result; const p = $("#storeLogoPreview"); p.src = pendingLogo; $("#logoPreviewWrap").hidden = false; renderReceiptPreview(); };
   r.readAsDataURL(f);
+});
+// Nút X trên ảnh logo: xóa ảnh khỏi cài đặt in (bấm "Lưu cài đặt in" để lưu lại).
+$("#removeLogoBtn").addEventListener("click", () => {
+  pendingLogo = null;
+  DB.get().settings.logo = "";
+  $("#logoPreviewWrap").hidden = true;
+  $("#setStoreLogo").value = "";
+  renderReceiptPreview();
 });
 function sampleOrderForPreview() {
   return {
