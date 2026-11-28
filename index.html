@@ -303,8 +303,8 @@
           <div id="posLines" class="pos-lines"></div>
           <div class="pos-summary">
             <div class="row"><span>Tạm tính</span><b id="posSubtotal">0</b></div>
-            <div class="row"><span>Giảm giá hóa đơn</span><span class="inline-ctl"><span class="seg-toggle" id="posDiscountTypeSeg"><button type="button" class="seg-btn selected" data-t="amount">VNĐ</button><button type="button" class="seg-btn" data-t="percent">%</button></span><input id="posDiscountValue" type="number" min="0" value="0" class="mini-input"></span></div>
-            <div class="row"><span>Thu khác (ship)</span><input id="posShipping" type="number" min="0" value="0" class="mini-input"></div>
+            <div class="row"><span>Giảm giá hóa đơn</span><span class="inline-ctl"><span class="seg-toggle" id="posDiscountTypeSeg"><button type="button" class="seg-btn selected" data-t="amount">VNĐ</button><button type="button" class="seg-btn" data-t="percent">%</button></span><input id="posDiscountValue" type="text" inputmode="numeric" value="0" class="mini-input"></span></div>
+            <div class="row"><span>Thu khác (ship)</span><input id="posShipping" type="text" inputmode="numeric" value="0" class="mini-input"></div>
             <div class="row total"><span>Tổng tiền</span><b id="posTotal">0</b></div>
           </div>
           <div class="pay-boxes" id="posPayBoxes">
@@ -314,7 +314,7 @@
           </div>
           <div class="pos-summary">
             <div id="posPaidSuggest" class="paid-suggest" hidden></div>
-            <div class="row" id="posPaidRow"><span>Khách đưa</span><input id="posPaid" type="number" min="0" value="0" class="mini-input"></div>
+            <div class="row" id="posPaidRow"><span>Khách đưa</span><input id="posPaid" type="text" inputmode="numeric" value="0" class="mini-input"></div>
             <div class="row" id="posChangeRow"><span>Tiền thừa</span><b id="posChange">0</b></div>
           </div>
           <div class="pos-actions">

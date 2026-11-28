@@ -8,6 +8,25 @@ let posPaidManual = false;
 // Số lượng hiển thị tối đa 3 số lẻ (VD 2.366 Kg), bỏ số 0 thừa.
 const fmtQty = (q) => { const n = parseFloat((+q || 0).toFixed(3)); return isNaN(n) ? 0 : n; };
 
+// ----- Ô tiền trong hóa đơn: hiển thị dấu chấm phân cách nghìn -----
+// VD gõ 100000 → hiện "100.000", gõ 12000 → "12.000". Ô input phải là text
+// (input number không cho gõ dấu chấm), nên tự định dạng khi gõ + tự đọc
+// số khi tính. moneyInput/DB.parseNum đọc "100.000" thành 100 nên KHÔNG
+// dùng cho các ô này — đọc bằng readMoneyField (chỉ lấy chữ số).
+function fmtMoneyField(el) {
+  const digits = String(el.value).replace(/\D/g, "");
+  if (!digits) { el.value = ""; return; }
+  // Giữ vị trí con trỏ: đếm có bao nhiêu chữ số đứng trước con trỏ cũ.
+  const before = String(el.value).slice(0, el.selectionStart).replace(/\D/g, "").length;
+  el.value = fmt(parseInt(digits, 10));
+  let pos = 0, seen = 0;
+  while (pos < el.value.length && seen < before) { if (/\d/.test(el.value[pos])) seen++; pos++; }
+  try { el.setSelectionRange(pos, pos); } catch (e) { /* input chưa focus */ }
+}
+function readMoneyField(el) { return parseInt(String(el.value).replace(/\D/g, ""), 10) || 0; }
+// Chế độ % (giảm giá): số nhỏ, không thêm dấu chấm; cho phép số lẻ (VD 7.5).
+function readPercentField(el) { return parseFloat(String(el.value).replace(/[^\d.,]/g, "").replace(",", ".")) || 0; }
+
 // ----- Bán hàng trên điện thoại: 2 màn hình riêng -----
 // "pick": chỉ hiện phần tìm kiếm + danh sách hàng hóa.
 // "bill": chỉ hiện hóa đơn, phía trên có thanh tìm kiếm để quay lại thêm hàng.
@@ -42,9 +61,9 @@ function setPosPayment(p) {
   const t = posTotals();
   // Tiền mặt: Khách đưa mặc định bằng Tổng tiền. Chuyển khoản: đủ tiền.
   // Ghi nợ: khách chưa đưa tiền. Chuyển khoản / Ghi nợ thì ẩn dòng Khách đưa.
-  if (p === "cash") { posPaidManual = false; $("#posPaid").value = t.total; }
-  if (p === "transfer") $("#posPaid").value = t.total;
-  if (p === "debt") $("#posPaid").value = 0;
+  if (p === "cash") { posPaidManual = false; $("#posPaid").value = fmt(t.total); }
+  if (p === "transfer") $("#posPaid").value = fmt(t.total);
+  if (p === "debt") $("#posPaid").value = fmt(0);
   const isCash = p === "cash";
   $("#posPaidRow").hidden = !isCash;
   $("#posChangeRow").hidden = !isCash;
@@ -120,20 +139,20 @@ function renderPosCart() {
 function posTotals() {
   let sub = 0;
   for (const it of posCart) sub += Math.max(0, it.price * it.qty - (it.discount || 0));
-  const dv = moneyInput($("#posDiscountValue").value);
+  const dv = posDiscountType === "percent" ? readPercentField($("#posDiscountValue")) : readMoneyField($("#posDiscountValue"));
   const disc = posDiscountType === "percent" ? sub * Math.min(100, dv) / 100 : Math.min(sub, dv);
-  const ship = moneyInput($("#posShipping").value);
+  const ship = readMoneyField($("#posShipping"));
   return { sub, disc, ship, total: Math.max(0, sub - disc + ship) };
 }
 function updatePosTotals() {
   const t = posTotals();
   // Khách đưa tự theo Tổng tiền khi đang ở Tiền mặt và nhân viên chưa tự
   // nhập số khác; Chuyển khoản luôn đủ tiền.
-  if (posPayment === "cash" && !posPaidManual) $("#posPaid").value = t.total;
-  if (posPayment === "transfer") $("#posPaid").value = t.total;
+  if (posPayment === "cash" && !posPaidManual) $("#posPaid").value = fmt(t.total);
+  if (posPayment === "transfer") $("#posPaid").value = fmt(t.total);
   $("#posSubtotal").textContent = fmt(t.sub) + "đ";
   $("#posTotal").textContent = fmt(t.total) + "đ";
-  const paid = moneyInput($("#posPaid").value);
+  const paid = readMoneyField($("#posPaid"));
   $("#posChange").textContent = fmt(Math.max(0, paid - t.total)) + "đ";
   renderPaidSuggest(t.total);
 }
@@ -157,20 +176,28 @@ function renderPaidSuggest(total) {
 $("#posPaidSuggest").addEventListener("click", (e) => {
   const b = e.target.closest(".suggest-chip");
   if (!b) return;
-  $("#posPaid").value = +b.dataset.amt;
+  $("#posPaid").value = fmt(+b.dataset.amt);
   posPaidManual = true;
   updatePosTotals();
 });
 $("#posSearch").addEventListener("input", () => renderPOS());
 $("#posCategoryFilter").addEventListener("change", () => renderPOS());
-["posDiscountValue", "posShipping"].forEach((id) =>
-  $("#" + id).addEventListener("input", updatePosTotals));
-$("#posPaid").addEventListener("input", () => { posPaidManual = true; updatePosTotals(); });
+$("#posDiscountValue").addEventListener("input", () => {
+  if (posDiscountType === "amount") fmtMoneyField($("#posDiscountValue"));
+  updatePosTotals();
+});
+$("#posShipping").addEventListener("input", () => { fmtMoneyField($("#posShipping")); updatePosTotals(); });
+$("#posPaid").addEventListener("input", () => { fmtMoneyField($("#posPaid")); posPaidManual = true; updatePosTotals(); });
 $("#posDiscountTypeSeg").addEventListener("click", (e) => {
   const b = e.target.closest(".seg-btn");
   if (!b) return;
+  const dvEl = $("#posDiscountValue");
+  // Đổi chế độ: đọc số theo chế độ cũ rồi hiển thị lại theo chế độ mới
+  // (VNĐ thì có dấu chấm, % thì số trần).
+  const cur = posDiscountType === "percent" ? readPercentField(dvEl) : readMoneyField(dvEl);
   posDiscountType = b.dataset.t;
   $$("#posDiscountTypeSeg .seg-btn").forEach((x) => x.classList.toggle("selected", x === b));
+  dvEl.value = posDiscountType === "amount" ? fmt(cur) : String(cur);
   updatePosTotals();
 });
 $("#posPayBoxes").addEventListener("click", (e) => {
@@ -248,7 +275,7 @@ function openItemDiscountModal(idx) {
       <span>Số tiền giảm / % giảm</span>
       <span class="inline-ctl">
         <span class="seg-toggle" id="itemDiscTypeSeg"><button type="button" class="seg-btn selected" data-t="amount">VNĐ</button><button type="button" class="seg-btn" data-t="percent">%</button></span>
-        <input id="itemDiscValue" type="number" min="0" value="${it.discount || 0}" class="mini-input">
+        <input id="itemDiscValue" type="text" inputmode="numeric" value="${fmt(it.discount || 0)}" class="mini-input">
       </span>
     </div>
     <div class="modal-actions">
@@ -258,12 +285,18 @@ function openItemDiscountModal(idx) {
   $("#itemDiscTypeSeg", card).addEventListener("click", (e) => {
     const b = e.target.closest(".seg-btn");
     if (!b) return;
+    const vEl = $("#itemDiscValue", card);
+    const cur = itemDiscType === "percent" ? readPercentField(vEl) : readMoneyField(vEl);
     itemDiscType = b.dataset.t;
     $$("#itemDiscTypeSeg .seg-btn", card).forEach((x) => x.classList.toggle("selected", x === b));
+    vEl.value = itemDiscType === "amount" ? fmt(cur) : String(cur);
+  });
+  $("#itemDiscValue", card).addEventListener("input", () => {
+    if (itemDiscType === "amount") fmtMoneyField($("#itemDiscValue", card));
   });
   $("#itemDiscCancel", card).onclick = () => closeModal();
   $("#itemDiscSave", card).onclick = () => {
-    const v = moneyInput($("#itemDiscValue", card).value);
+    const v = itemDiscType === "percent" ? readPercentField($("#itemDiscValue", card)) : readMoneyField($("#itemDiscValue", card));
     let disc = 0;
     if (itemDiscType === "percent") {
       if (v < 0 || v > 100) { notify("Phần trăm giảm phải từ 0 đến 100."); return; }
@@ -343,7 +376,7 @@ async function saveOrder(printAfter) {
   const db = DB.get();
   const t = posTotals();
   const payment = posPayment;
-  const paid = moneyInput($("#posPaid").value);
+  const paid = readMoneyField($("#posPaid"));
   if (payment === "debt" && !posCustomer) { notify("Ghi nợ cần chọn khách hàng trước."); return; }
   if (payment !== "debt" && paid < t.total) {
     notify(`Khách chưa trả đủ tiền (thiếu ${fmt(t.total - paid)}đ). Chọn "Ghi nợ" nếu cho khách nợ, hoặc nhập đủ số tiền khách đưa.`);
