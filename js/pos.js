@@ -124,7 +124,7 @@ function renderPosCart() {
   box.innerHTML = posCart.map((it, i) => `<div class="pos-line">
     <div class="ln-top"><span><b>${esc(it.name)}</b>${it.isBundle ? ` <span class="badge badge-blue">Combo</span>` : ""}<br><span class="muted">${fmt(it.price)}đ / ${esc(it.unit)}</span></span>
     <b>${fmt(Math.max(0, it.price * it.qty - (it.discount || 0)))}đ</b></div>
-    ${it.isBundle ? `<div class="bundle-comps">${(it.components || []).map((c, j) => `<div class="bundle-comp"><span>↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span><b class="comp-amt">${fmt(compAmount(c))}đ</b><button class="btn btn-ghost btn-sm" data-comp-rm="${i}:${j}" type="button" style="color:var(--red)">✕</button></div>`).join("")}<button class="btn btn-outline btn-sm" data-comp-add="${i}" type="button">＋ Thêm thành phần</button></div>` : ""}
+    ${it.isBundle ? `<div class="bundle-comps">${(it.components || []).map((c, j) => `<div class="bundle-comp"><span>↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span><b class="comp-amt">${fmt(compAmount(c))}đ</b><button class="btn btn-ghost btn-sm" data-comp-rm="${i}:${j}" type="button" style="color:var(--red)">✕</button></div>`).join("")}<button class="btn btn-outline btn-sm" data-comp-add="${i}" type="button">＋ Thêm thành phần</button>${(it.components || []).length ? `<div class="bundle-total"><span>TỔNG</span><b>${fmt(bundleCompsTotal(it))}đ</b></div>` : ""}</div>` : ""}
     <div class="ln-ctl">
       <span class="qty-group">
         <button class="qty-btn" data-i="${i}" data-d="-1" type="button">−</button>
