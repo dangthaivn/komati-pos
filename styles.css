@@ -196,6 +196,8 @@ main { max-width: 1720px; margin: 0 auto; padding: 16px; padding-bottom: 90px; }
 .bundle-comp { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 2px 0; }
 .comp-pick { display: block; width: 100%; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; margin-top: 6px; cursor: pointer; font-size: 14px; }
 .comp-pick:hover { background: #f1f5f9; }
+.bundle-comp .comp-amt { margin-left: auto; color: var(--text); white-space: nowrap; }
+.bundle-total { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; padding-top: 4px; margin-top: 4px; border-top: 1px dashed var(--line); }
 
 /* ---------- POS ---------- */
 .pos-layout { display: grid; grid-template-columns: 1fr 440px; gap: 14px; align-items: start; }

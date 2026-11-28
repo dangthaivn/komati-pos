@@ -124,7 +124,7 @@ function renderPosCart() {
   box.innerHTML = posCart.map((it, i) => `<div class="pos-line">
     <div class="ln-top"><span><b>${esc(it.name)}</b>${it.isBundle ? ` <span class="badge badge-blue">Combo</span>` : ""}<br><span class="muted">${fmt(it.price)}đ / ${esc(it.unit)}</span></span>
     <b>${fmt(Math.max(0, it.price * it.qty - (it.discount || 0)))}đ</b></div>
-    ${it.isBundle ? `<div class="bundle-comps">${(it.components || []).map((c, j) => `<div class="bundle-comp"><span>↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span><button class="btn btn-ghost btn-sm" data-comp-rm="${i}:${j}" type="button" style="color:var(--red)">✕</button></div>`).join("")}<button class="btn btn-outline btn-sm" data-comp-add="${i}" type="button">＋ Thêm thành phần</button></div>` : ""}
+    ${it.isBundle ? `<div class="bundle-comps">${(it.components || []).map((c, j) => `<div class="bundle-comp"><span>↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span><b class="comp-amt">${fmt(compAmount(c))}đ</b><button class="btn btn-ghost btn-sm" data-comp-rm="${i}:${j}" type="button" style="color:var(--red)">✕</button></div>`).join("")}<button class="btn btn-outline btn-sm" data-comp-add="${i}" type="button">＋ Thêm thành phần</button></div>` : ""}
     <div class="ln-ctl">
       <span class="qty-group">
         <button class="qty-btn" data-i="${i}" data-d="-1" type="button">−</button>
@@ -348,6 +348,16 @@ function snapshotBundleComponents(it, db) {
   const unitCost = components.reduce((s, c) => s + (c.costPrice || 0) * (c.qty || 0), 0);
   return { components, unitCost };
 }
+// Số tiền 1 thành phần đóng góp vào giỏ = số lượng × giá bán lẻ của nó
+// (để nhân viên đối chiếu với giá giỏ lúc chọn). Giá vốn chốt riêng vào
+// đơn lúc lưu (snapshotBundleComponents) để tính lãi.
+function compAmount(c) {
+  const p = DB.get().products.find((x) => x.id === c.productId);
+  return Math.round((c.qty || 0) * (p ? p.price || 0 : 0));
+}
+function bundleCompsTotal(it) {
+  return (it.components || []).reduce((s, c) => s + compAmount(c), 0);
+}
 // Cửa sổ chọn thành phần cho 1 giỏ: tìm hàng (trừ giỏ combo khác, trừ hàng
 // hết kho), nhập số lượng, bấm Thêm — giữ cửa sổ mở để thêm tiếp nhiều
 // thành phần, bấm Xong để quay lại hóa đơn.
@@ -365,7 +375,9 @@ function openComponentPicker(idx) {
   let picked = null;
   function drawAdded() {
     $("#compAdded", card).innerHTML = it.components.length
-      ? `<b>Đã thêm:</b>` + it.components.map((c, j) => `<div class="bundle-comp"><span>↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span><button class="btn btn-ghost btn-sm" data-crm="${j}" type="button" style="color:var(--red)">✕</button></div>`).join("")
+      ? `<b>Đã thêm:</b>` + it.components.map((c, j) => `<div class="bundle-comp"><span>↳ ${esc(c.name)} — ${fmtQty(c.qty)} ${esc(c.unit)}</span><b class="comp-amt">${fmt(compAmount(c))}đ</b><button class="btn btn-ghost btn-sm" data-crm="${j}" type="button" style="color:var(--red)">✕</button></div>`).join("")
+        + `<div class="bundle-total"><span>Tổng thành phần (1 giỏ)</span><b>${fmt(bundleCompsTotal(it))}đ</b></div>`
+        + `<div class="bundle-total"><span>Giá giỏ</span><b>${fmt(it.price)}đ</b></div>`
       : `<p class="muted">Chưa thêm thành phần nào.</p>`;
   }
   function drawResults(q) {

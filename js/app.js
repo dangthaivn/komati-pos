@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v39";
+const APP_VERSION = "v40";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
