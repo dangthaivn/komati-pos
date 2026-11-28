@@ -501,8 +501,10 @@ async function saveOrder(printAfter) {
     notify(`Khách chưa trả đủ tiền (thiếu ${fmt(t.total - paid)}đ). Chọn "Ghi nợ" nếu cho khách nợ, hoặc nhập đủ số tiền khách đưa.`);
     return;
   }
-  // Kiểm tra tồn kho lần cuối
+  // Kiểm tra tồn kho lần cuối (giỏ combo không có tồn riêng — kho thành
+  // phần đã kiểm ở trên nên bỏ qua dòng giỏ ở đây).
   for (const it of sell) {
+    if (it.isBundle) continue;
     const p = db.products.find((x) => x.id === it.productId);
     if (!p || it.qty > (p.stock || 0)) { notify(`"${it.name}" không đủ tồn kho.`); return; }
   }
