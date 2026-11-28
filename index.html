@@ -163,6 +163,7 @@
             <option value="custom">Ngày tùy chọn</option>
           </select>
           <input id="orderPeriodDate" type="date" hidden>
+          <button id="refreshOrdersBtn" class="btn btn-outline" type="button" title="Tải lại danh sách đơn hàng">⟳ Làm mới</button>
         </div>
       </div>
       <div id="bulkBarOrders" class="bulk-bar" hidden>
@@ -170,10 +171,11 @@
         <button id="bulkDeleteOrders" class="btn btn-danger" type="button">Xóa đã chọn</button>
       </div>
       <div class="card table-card">
-        <table class="tbl">
+        <table class="tbl" id="ordersTbl">
           <thead><tr><th class="cb"><input id="checkAllOrders" type="checkbox"></th><th>Mã hóa đơn</th><th>Thời gian</th><th>Khách hàng</th><th>Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th><th></th></tr></thead>
           <tbody id="orderTable"></tbody>
         </table>
+        <div id="ordersEmpty" class="empty-state" hidden>Chưa có hóa đơn nào trong kỳ.</div>
       </div>
     </section>
 
@@ -197,10 +199,11 @@
         <button id="bulkDeleteCustomers" class="btn btn-danger" type="button">Xóa đã chọn</button>
       </div>
       <div class="card table-card">
-        <table class="tbl">
+        <table class="tbl" id="customersTbl">
           <thead><tr><th class="cb"><input id="checkAllCustomers" type="checkbox"></th><th>Mã khách hàng</th><th>Tên khách hàng</th><th>Điện thoại</th><th>Nợ hiện tại</th><th>Tổng bán</th><th></th></tr></thead>
           <tbody id="customerTable"></tbody>
         </table>
+        <div id="customersEmpty" class="empty-state" hidden>Chưa có khách hàng nào.</div>
       </div>
     </section>
 
@@ -357,5 +360,7 @@
 <script src="js/app.js"></script>
 <script src="js/vendor/html5-qrcode.min.js"></script>
 <script src="js/pos.js"></script>
+<!-- Bong bóng hướng dẫn khi kéo xuống để làm mới ở tab Đơn hàng. -->
+<div id="ptrIndicator" class="ptr-indicator" hidden>↓ Kéo xuống để làm mới</div>
 </body>
 </html>

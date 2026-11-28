@@ -1,7 +1,7 @@
 /* KOMATI — logic chính: điều hướng, dashboard, hàng hóa, đơn hàng. */
 // Phiên bản app — tăng cùng với CACHE trong sw.js sau MỖI lần deploy.
 // Hiện ở màn hình đăng nhập và trong menu "Khác" để biết mình đang dùng bản nào.
-const APP_VERSION = "v42";
+const APP_VERSION = "v43";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1010,6 +1010,11 @@ function renderOrders() {
   const list = db.orders.filter((o) => inRange(o.date, from, to)).sort((a, b) => b.time.localeCompare(a.time));
   const staff = isStaffUser();
   $("#checkAllOrders").style.display = staff ? "none" : "";
+  // Hết đơn trong kỳ: ẩn bảng, hiện dòng báo trống căn giữa màn hình (dòng
+  // cũ nằm trong bảng rộng 640px nên trên điện thoại bị lệch sang một bên).
+  const ordersEmpty = !list.length;
+  $("#ordersTbl").hidden = ordersEmpty;
+  $("#ordersEmpty").hidden = !ordersEmpty;
   $("#orderTable").innerHTML = list.map((o) => {
     const s = orderStats(o);
     const badge = o.status === "completed" ? `<span class="badge badge-green">Hoàn thành</span>`
@@ -1024,9 +1029,47 @@ function renderOrders() {
       <td>${badge}</td>
       <td style="white-space:nowrap"><button class="link-btn" data-act="view" data-id="${o.id}" type="button">Xem</button>
       ${o.status === "completed" && !staff ? `<button class="link-btn" data-act="return" data-id="${o.id}" type="button" style="color:var(--amber)">Hủy/Trả hàng</button>` : ""}</td></tr>`;
-  }).join("") || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Chưa có hóa đơn nào trong kỳ.</td></tr>`;
+  }).join("");
   updateBulkBar("orders", orderSel, "hóa đơn");
 }
+// Tải lại đơn hàng từ Firestore (đơn nhân viên bán trên máy tính không tự
+// hiện lên điện thoại vì app chỉ tải dữ liệu 1 lần lúc đăng nhập).
+async function refreshOrders() {
+  const btn = $("#refreshOrdersBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Đang tải…"; }
+  try {
+    await DB.reload();
+    renderOrders();
+    notify("Đã cập nhật danh sách đơn hàng.");
+  } catch (e) {
+    notify("Không tải được dữ liệu mới. Kiểm tra mạng rồi thử lại.");
+  }
+  if (btn) { btn.disabled = false; btn.textContent = "⟳ Làm mới"; }
+}
+$("#refreshOrdersBtn").addEventListener("click", refreshOrders);
+// Kéo xuống để làm mới ở tab Đơn hàng (điện thoại): đang ở đầu trang, kéo
+// xuống quá 70px rồi thả ra thì tải lại danh sách như nút Làm mới.
+let ptrStartY = null, ptrPull = 0;
+function ptrShow(text) { const el = $("#ptrIndicator"); if (el) { el.hidden = false; el.textContent = text; } }
+function ptrHide() { const el = $("#ptrIndicator"); if (el) el.hidden = true; }
+window.addEventListener("touchstart", (e) => {
+  if (currentView !== "orders" || window.scrollY > 0 || !e.touches.length) { ptrStartY = null; return; }
+  ptrStartY = e.touches[0].clientY; ptrPull = 0;
+}, { passive: true });
+window.addEventListener("touchmove", (e) => {
+  if (ptrStartY === null || window.scrollY > 0) return;
+  ptrPull = e.touches[0].clientY - ptrStartY;
+  if (ptrPull > 0) {
+    ptrShow(ptrPull > 70 ? "Thả ra để làm mới" : "↓ Kéo xuống để làm mới");
+    if (ptrPull > 10) e.preventDefault();
+  } else ptrHide();
+}, { passive: false });
+window.addEventListener("touchend", async () => {
+  if (ptrStartY === null) return;
+  const pulled = ptrPull; ptrStartY = null; ptrPull = 0;
+  if (pulled > 70) { ptrShow("⏳ Đang tải…"); await refreshOrders(); }
+  ptrHide();
+});
 $("#orderPeriodSelect").addEventListener("change", (e) => {
   $("#orderPeriodDate").hidden = e.target.value !== "custom";
   if (e.target.value !== "custom") renderOrders();
@@ -1143,7 +1186,12 @@ function renderCustomers() {
       <button class="link-btn" data-act="pay" data-id="${c.id}" type="button">Trả nợ</button>
       <button class="link-btn" data-act="edit" data-id="${c.id}" type="button">Sửa</button>
       <button class="link-btn" data-act="del" data-id="${c.id}" type="button" style="color:var(--red)">Xóa</button>
-    </td></tr>`).join("") || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Chưa có khách hàng nào.</td></tr>`;
+    </td></tr>`).join("");
+  // Hết khách (VD: tìm không thấy ai): ẩn bảng, hiện dòng báo trống căn giữa
+  // màn hình — giống cách làm ở tab Đơn hàng.
+  const customersEmpty = !list.length;
+  $("#customersTbl").hidden = customersEmpty;
+  $("#customersEmpty").hidden = !customersEmpty;
   updateBulkBar("customers", customerSel, "khách hàng");
 }
 $("#customerSearch").addEventListener("input", () => renderCustomers());

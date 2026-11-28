@@ -218,6 +218,14 @@ const DB = (() => {
     store = await loadFromFirestore();
     return store;
   }
+  // Tải lại toàn bộ dữ liệu từ Firestore (dùng cho Kéo xuống để làm mới ở
+  // tab Đơn hàng). Chỉ đọc lại, không ghi gì thêm — backfill nhật ký chỉ
+  // chạy khi nhật ký đang trống nên lần tải lại thường không ghi gì cả.
+  async function reload() {
+    if (!fs) return false;
+    store = await loadFromFirestore();
+    return true;
+  }
   function get() { return store; }
   function save() { if (fs) { /* Firestore: ghi theo từng collection khi thay đổi (xem put/remove) */ } else saveDemo(); }
   async function put(coll, item) {
@@ -299,5 +307,5 @@ const DB = (() => {
     await Promise.all(list.map((e) => saveToFirestore("activity", e).catch(() => {})));
   }
 
-  return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs, loadAfterLogin, ensureLots, recalcStock, deductFromLots, withTimeout };
+  return { init, get, save, put, remove, logActivity, uid, todayStr, fmtMoney, parseNum, isFirebase: () => !!fs, loadAfterLogin, reload, ensureLots, recalcStock, deductFromLots, withTimeout };
 })();

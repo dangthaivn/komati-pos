@@ -25,6 +25,17 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
+/* Chặn trang tràn ngang trên điện thoại (nội dung rộng hơn màn hình làm app
+   mở lên bị mất 2 bên, phải vuốt nhỏ lại mới vừa). overflow-x: clip giữ
+   nguyên được thanh topbar dính trên cùng; hidden là dự phòng cho trình
+   duyệt cũ chưa hiểu clip. */
+html, body { overflow-x: hidden; overflow-x: clip; }
+/* Dòng báo trống của bảng (VD: chưa có hóa đơn trong kỳ): hiện dạng khối
+   riêng, căn giữa theo màn hình — không nằm trong bảng rộng 640px nên
+   không bị lệch sang một bên trên điện thoại. */
+.empty-state { text-align: center; color: var(--muted); padding: 24px 16px; font-size: 14px; }
+/* Bong bóng hướng dẫn khi kéo xuống để làm mới ở tab Đơn hàng. */
+.ptr-indicator { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 10px rgba(15,23,42,.15); z-index: 25; white-space: nowrap; }
 [hidden] { display: none !important; }
 .muted { color: var(--muted); font-size: 13px; }
 .error { color: var(--red); font-size: 13px; }
@@ -354,6 +365,18 @@ select.mini-input { width: auto; }
   .tbl { min-width: 640px; }
   .tbl-fit th, .tbl-fit td { padding: 8px 6px; font-size: 13px; }
   .tbl-fit td.num, .tbl-fit th.num { white-space: nowrap; }
+  /* Điện thoại: ô nhập chữ đủ 16px để iPhone không tự phóng to trang mỗi
+     khi chạm vào ô tìm kiếm (ô tìm Bán hàng trước đây chỉ 15px nên chạm
+     vào là trang bị zoom, mở app lên thấy mất 2 bên). */
+  input, select, textarea { font-size: 16px !important; }
+  /* Điện thoại: 4 ô thống kê thành 2 cột cho thoáng; biểu đồ full chiều rộng. */
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid { grid-template-columns: 1fr; }
+  .dash-col { grid-column: 1 / -1; }
+  /* Điện thoại: đầu tab Khách hàng — 3 nút Import / Tải file / + Khách hàng
+     bóp gọn thành 1 hàng. */
+  #view-customers .head-actions { flex-wrap: nowrap; }
+  #view-customers .head-actions .btn { flex: 1 1 0; min-width: 0; padding: 8px 6px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Điện thoại: biểu đồ gọn lại cho cân với 4 ô thống kê phía trên, vừa màn hình. */
   .bar-chart { height: 120px; gap: 2px; overflow-x: visible; }
   .bar-col { flex: 1 1 0; min-width: 0; }
